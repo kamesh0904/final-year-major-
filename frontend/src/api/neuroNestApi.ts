@@ -2,8 +2,8 @@
 
 import { supabase } from "../lib/supabase";
 
-// Use environment variable or fallback to local development
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Use environment variable or fallback to same-origin (proxy mode)
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 // --- Interfaces ---
 export interface QuestionnaireResponse {

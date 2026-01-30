@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 import { Sun, TrendingUp, Target, Calendar, BarChart3, Heart, Zap } from "lucide-react";
 import DailyQuestionnaire from "./DailyQuestionnaire";
 
@@ -73,7 +75,7 @@ export default function DailyNeuroInsightReport({ onGenerateNew }: DailyNeuroIns
             setHasTodayData(hasTodayData);
 
             // Try to call the backend API for daily report
-            const response = await fetch('/api/reports/get-latest-daily-report', {
+            const response = await fetch(`${API_BASE}/api/reports/get-latest-daily-report`, {
                 headers: {
                     'Authorization': `Bearer ${user.id}`,
                     'Content-Type': 'application/json'
@@ -140,7 +142,7 @@ export default function DailyNeuroInsightReport({ onGenerateNew }: DailyNeuroIns
                 motivation: "Quite"
             };
 
-            const response = await fetch('/api/reports/generate-daily-report', {
+            const response = await fetch(`${API_BASE}/api/reports/generate-daily-report`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${user.id}`,

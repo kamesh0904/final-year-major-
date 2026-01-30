@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 import { Brain, TrendingUp, Target, Calendar, BarChart3, Heart, Zap } from "lucide-react";
 import WeeklyQuestionnaire from "./WeeklyQuestionnaire";
 
@@ -59,7 +61,7 @@ export default function WeeklyNeuroInsightReport({ onGenerateNew }: WeeklyNeuroI
             setHasGameData(gameSessions && gameSessions.length > 0);
 
             // Try to call the backend API
-            const response = await fetch('/api/reports/get-latest-weekly-report', {
+            const response = await fetch(`${API_BASE}/api/reports/get-latest-weekly-report`, {
                 headers: {
                     'Authorization': `Bearer ${user.id}`,
                     'Content-Type': 'application/json'
@@ -110,7 +112,7 @@ export default function WeeklyNeuroInsightReport({ onGenerateNew }: WeeklyNeuroI
                 social_interactions: "Positive"
             };
 
-            const response = await fetch('/api/reports/generate-enhanced-weekly-report', {
+            const response = await fetch(`${API_BASE}/api/reports/generate-enhanced-weekly-report`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${user.id}`,

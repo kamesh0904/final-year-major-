@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 import { Book, Lock, Plus, Trash2, Calendar, Heart } from "lucide-react";
 
 interface DiaryEntry {
@@ -62,7 +64,7 @@ export default function DiarySection({ userId }: DiarySectionProps) {
         try {
             if (!hasPassword) {
                 // Create new diary password
-                const response = await fetch('http://localhost:8000/create-diary-password', {
+                const response = await fetch(`${API_BASE}/create-diary-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, password })
@@ -77,7 +79,7 @@ export default function DiarySection({ userId }: DiarySectionProps) {
                 }
             } else {
                 // Verify existing password
-                const response = await fetch('http://localhost:8000/verify-diary-password', {
+                const response = await fetch(`${API_BASE}/verify-diary-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: userId, password })

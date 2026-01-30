@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from agents.schemas import GameConfig, ObserverSignal
 
 load_dotenv()
@@ -12,9 +12,9 @@ class ArchitectAgent:
     """
 
     def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(
-            api_key=os.getenv("GOOGLE_API_KEY"),
-            model="gemini-1.5-flash",
+        self.llm = ChatOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            model="gpt-4o",
             temperature=0.4
         )
         self.structured = self.llm.with_structured_output(GameConfig)

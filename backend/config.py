@@ -4,6 +4,10 @@ Configuration settings for NeuroNest backend
 
 import os
 from typing import List
+from dotenv import load_dotenv
+
+# Load .env file before Settings class instantiation
+load_dotenv()
 
 class Settings:
     # Environment
@@ -25,8 +29,14 @@ class Settings:
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+        "https://neuronest-3bc25.web.app",
+        "https://neuronest-3bc25.firebaseapp.com",
         "https://neuronest-app.web.app",
         "https://neuronest-app.firebaseapp.com",
+        "https://neuronest-v2-prod.web.app",
+        "https://neuronest-v2-prod.firebaseapp.com",
         # Add your custom domain here
         # "https://yourdomain.com"
     ]

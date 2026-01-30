@@ -46,12 +46,19 @@ A comprehensive mental health support platform designed for neurodivergent indiv
 
 ## 🏗️ Tech Stack
 
-### Frontend
+### Frontend (Web)
 - **React** with TypeScript
 - **Vite** for build tooling
 - **Tailwind CSS** for styling
 - **Supabase** for authentication and database
 - **jsPDF** for report generation
+
+### Mobile App
+- **React Native** with Expo
+- **TypeScript** for type safety
+- **Native Navigation** with React Navigation
+- **Same Backend** as web app
+- **Cross-platform** (iOS & Android)
 
 ### Backend
 - **FastAPI** (Python)
@@ -62,6 +69,7 @@ A comprehensive mental health support platform designed for neurodivergent indiv
 ### Deployment
 - **Google Cloud Run** for backend
 - **Firebase Hosting** for frontend
+- **Expo EAS** for mobile app builds
 - **GitHub Actions** for CI/CD
 
 ## 🚀 Getting Started
@@ -72,6 +80,7 @@ A comprehensive mental health support platform designed for neurodivergent indiv
 - Supabase account
 - OpenAI API key
 - Google Cloud Platform account (for deployment)
+- Expo CLI (for mobile app development)
 
 ### Local Development
 
@@ -123,7 +132,27 @@ npm run dev
 
 Frontend will run on `http://localhost:5173`
 
-#### 4. Database Setup
+#### 4. Mobile App Setup (Optional)
+```bash
+cd mobile
+
+# Install dependencies
+npm install
+
+# Create .env file with configuration
+# EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+# EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+# EXPO_PUBLIC_API_URL=http://localhost:8000
+
+# Start Expo development server
+npm start
+
+# Scan QR code with Expo Go app on your phone
+```
+
+See [MOBILE_APP_SETUP_GUIDE.md](MOBILE_APP_SETUP_GUIDE.md) for detailed mobile setup.
+
+#### 5. Database Setup
 Run the SQL migrations in Supabase SQL Editor in this order:
 1. `backend/migrations/add_contact_info.sql`
 2. `backend/migrations/add_crisis_detection.sql`
@@ -159,6 +188,13 @@ See [GCP_DEPLOYMENT_GUIDE.md](GCP_DEPLOYMENT_GUIDE.md) for detailed deployment i
 │   │   ├── api/           # API client
 │   │   └── utils/         # Utility functions
 │   └── public/            # Static assets
+├── mobile/                 # React Native mobile app
+│   ├── src/
+│   │   ├── config/        # Configuration
+│   │   ├── contexts/      # React contexts
+│   │   ├── navigation/    # Navigation setup
+│   │   └── screens/       # App screens
+│   └── App.tsx            # Root component
 ├── games/                  # Unity games (optional)
 └── .github/workflows/      # CI/CD pipelines
 ```
@@ -183,6 +219,7 @@ VITE_API_URL=http://localhost:8000
 ## 📖 Documentation
 
 - [GCP Deployment Guide](GCP_DEPLOYMENT_GUIDE.md)
+- [Mobile App Setup Guide](MOBILE_APP_SETUP_GUIDE.md)
 - [Deployment Checklist](DEPLOYMENT_CHECKLIST.md)
 - [OAuth Setup Guide](OAUTH_SETUP_GUIDE.md)
 - [Post-Game Questionnaire Implementation](POST_GAME_QUESTIONNAIRE_IMPLEMENTATION.md)

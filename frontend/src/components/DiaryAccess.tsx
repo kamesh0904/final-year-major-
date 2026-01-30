@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 import { Book, Lock, ArrowRight } from "lucide-react";
 
 export default function DiaryAccess() {
@@ -21,7 +23,7 @@ export default function DiaryAccess() {
             }
 
             // Verify diary password
-            const response = await fetch('http://localhost:8000/verify-diary-password', {
+            const response = await fetch(`${API_BASE}/verify-diary-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: user.id, password })

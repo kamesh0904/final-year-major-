@@ -1,10 +1,13 @@
 {
     "hosting": {
+        "site": "neuronest-3bc25",
         "public": "frontend/dist",
         "ignore": [
             "firebase.json",
             "**/.*",
-            "**/node_modules/**"
+            "**/node_modules/**",
+            "mobile",
+            "mobile/**"
         ],
         "rewrites": [
             {
@@ -14,7 +17,7 @@
         ],
         "headers": [
             {
-                "source": "**/*.@(js|css|woff|woff2|ttf|eot)",
+                "source": "**/*.@(js|css|woff|woff2|ttf|eot|png|jpg|jpeg|gif|svg|ico|webp)",
                 "headers": [
                     {
                         "key": "Cache-Control",
@@ -23,11 +26,20 @@
                 ]
             },
             {
-                "source": "**/*.@(png|jpg|jpeg|gif|svg|ico|webp)",
+                "source": "index.html",
                 "headers": [
                     {
                         "key": "Cache-Control",
-                        "value": "max-age=86400"
+                        "value": "no-cache, no-store, must-revalidate"
+                    }
+                ]
+            },
+            {
+                "source": "service-worker.js",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "no-cache, no-store, must-revalidate"
                     }
                 ]
             }

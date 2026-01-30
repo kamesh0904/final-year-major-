@@ -65,14 +65,20 @@ Please, please call 988 right now - they have people who understand exactly what
         diary_context = ""
         if user_id:
             try:
-                import requests
-                response = requests.get(f"http://localhost:8000/diary-entries/{user_id}")
-                if response.status_code == 200:
-                    diary_data = response.json()
-                    entries = diary_data.get("entries", [])
+                # Use direct database connection instead of self-referencing HTTP request
+                from database import supabase
+                if supabase:
+                    response = supabase.table("diary_entries") \
+                        .select("title, content, mood_rating") \
+                        .eq("user_id", user_id) \
+                        .order("created_at", desc=True) \
+                        .limit(3) \
+                        .execute()
+                    
+                    entries = response.data
                     if entries:
                         diary_context = f"\n\nRECENT DIARY ENTRIES:\n"
-                        for entry in entries[:3]:  # Only use last 3 entries
+                        for entry in entries:
                             diary_context += f"- {entry['title']}: {entry['content'][:100]}... (Mood: {entry['mood_rating']}/10)\n"
                         diary_context += "\nUse this personal context to provide more empathetic and personalized responses."
             except Exception as e:

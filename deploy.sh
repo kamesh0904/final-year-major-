@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_ID="neuronest-app"
+PROJECT_ID="neuronest-v2-prod"
 BACKEND_SERVICE="neuronest-backend"
 REGION="us-central1"
 
@@ -126,6 +126,9 @@ deploy_frontend() {
     
     # Build the application
     echo -e "${BLUE}🔨 Building frontend application...${NC}"
+    # Clean previous build to prevent caching issues
+    echo -e "${YELLOW}🧹 Cleaning previous build artifacts...${NC}"
+    rm -rf dist
     npm run build
     
     # Deploy to Firebase
