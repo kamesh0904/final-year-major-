@@ -1,0 +1,142 @@
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.production.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+frontend/dist/
+frontend/build/
+backend/dist/
+backend/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.coverage
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Firebase
+.firebase/
+firebase-debug.log
+.firebaserc
+
+# Supabase
+.supabase/
+
+# Unity (for games folder)
+games/NeuroNest_Games/Library/
+games/NeuroNest_Games/Temp/
+games/NeuroNest_Games/Obj/
+games/NeuroNest_Games/Build/
+games/NeuroNest_Games/Builds/
+games/NeuroNest_Games/Logs/
+games/NeuroNest_Games/UserSettings/
+games/NeuroNest_Games/*.csproj
+games/NeuroNest_Games/*.unityproj
+games/NeuroNest_Games/*.sln
+games/NeuroNest_Games/*.suo
+games/NeuroNest_Games/*.user
+games/NeuroNest_Games/*.userprefs
+games/NeuroNest_Games/*.pidb
+games/NeuroNest_Games/*.booproj
+games/NeuroNest_Games/*.svd
+games/NeuroNest_Games/*.pdb
+games/NeuroNest_Games/*.mdb
+games/NeuroNest_Games/*.opendb
+games/NeuroNest_Games/*.VC.db
+
+# OS
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Secrets and keys
+*.pem
+*.key
+*.cert
+secrets/
+credentials/
+
+# Docker
+.dockerignore
+
+# Misc
+.cache/
+.parcel-cache/
