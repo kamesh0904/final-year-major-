@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Zap, Trophy, Play, RotateCcw, Flame } from "lucide-react";
-import { submitGameSession } from "../api/neuroNestApi";
+import { submitGameSession, getPersonalBest } from "../api/neuroNestApi";
 import { supabase } from "../lib/supabase";
 import GameSessionTracker from "./GameSessionTracker";
 
@@ -17,6 +17,11 @@ const ChromaticRush = () => {
   const [highScore, setHighScore] = useState(0);
   const [rotation, setRotation] = useState(0);
   const [speed, setSpeed] = useState(1.2);
+
+  // Load High Score
+  useEffect(() => {
+    getPersonalBest("Chromatic Rush").then(setHighScore);
+  }, []);
 
   // Colors
   const [arcColors, setArcColors] = useState<string[]>([
@@ -216,7 +221,7 @@ const ChromaticRush = () => {
   }, [rotation, arcColors, radiusColor]);
 
   return (
-    <GameSessionTracker gameName="Chromatic Rush">
+    <GameSessionTracker gameName="Chromatic Rush" gameScore={score}>
       <div className="min-h-screen bg-[#0b0616] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden transition-colors duration-500">
 
         {/* Background Ambience */}

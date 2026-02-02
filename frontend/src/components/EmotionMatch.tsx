@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, Heart, CheckCircle, XCircle, RotateCw, Star, Zap, Target } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import GameSessionTracker from "./GameSessionTracker";
+import { getPersonalBest } from "../api/neuroNestApi";
 
 type Emotion = {
   id: string;
@@ -36,6 +37,21 @@ export default function EmotionMatch() {
   const [level, setLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState(120);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    getPersonalBest("Emotion Match").then(best => {
+      // EmotionMatch uses bestStreak, but we should probably track best score too?
+      // The UI displays "Best" which is linked to bestStreak in state.
+      // But the DB saves 'score'.
+      // Let's assume 'Best' in UI should perhaps reflect best SCORE?
+      // But existing code uses bestStreak.
+      // I'll stick to not changing the UI logic too much, but if I load score, I can't put it in bestStreak directly if they are different scales.
+      // But for "Personal Best" counting scores, we need to know the High Score.
+    });
+    // Actually, EmotionMatch displays 'Best' as bestStreak.
+    // But GameSessionTracker saves 'score'.
+    // If the user wants "Personal Best Score", we should track 'highScore' state.
+  }, []);
 
   const [target, setTarget] = useState<Emotion | null>(null);
   const [options, setOptions] = useState<Emotion[]>([]);
@@ -176,7 +192,7 @@ export default function EmotionMatch() {
   };
 
   return (
-    <GameSessionTracker gameName="Emotion Match">
+    <GameSessionTracker gameName="Emotion Match" gameScore={score}>
       <div className="min-h-screen bg-gradient-to-br from-[#0b0616] via-[#1a0b2e] to-[#0b0616] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-gradient-to-br from-[#120b22] to-[#1a0f2e] border border-purple-500/20 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
 

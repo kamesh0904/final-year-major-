@@ -31,12 +31,11 @@ export default function DiaryAccess() {
 
             const result = await response.json();
             if (result.valid) {
-                // Store temporary access token in sessionStorage (expires when browser closes)
                 sessionStorage.setItem('diary_access', 'granted');
                 sessionStorage.setItem('diary_access_time', Date.now().toString());
 
-                // Navigate to profile with diary access
-                navigate("/profile?diary=true");
+                // Navigate to diary page
+                navigate("/diary");
             } else {
                 alert("Incorrect diary password");
             }

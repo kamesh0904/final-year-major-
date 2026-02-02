@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Shield, AlertTriangle, CheckCircle, Zap, Target, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import GameSessionTracker from "./GameSessionTracker";
+import { getPersonalBest } from "../api/neuroNestApi";
 
 type GameState = "idle" | "waiting" | "cue" | "false-alarm" | "success" | "fail";
 
@@ -14,6 +15,10 @@ export default function ImpulseGuard() {
   const [level, setLevel] = useState(1);
   const [combo, setCombo] = useState(0);
   const [bestReactionTime, setBestReactionTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    getPersonalBest("Impulse Guard").then(setHighScore);
+  }, []);
 
   const [gameState, setGameState] = useState<GameState>("idle");
   const [message, setMessage] = useState("Ready to test your impulse control?");
@@ -155,7 +160,7 @@ export default function ImpulseGuard() {
   };
 
   return (
-    <GameSessionTracker gameName="Impulse Guard">
+    <GameSessionTracker gameName="Impulse Guard" gameScore={score}>
       <div className="min-h-screen bg-gradient-to-br from-[#0b0616] via-[#1a0b2e] to-[#0b0616] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-gradient-to-br from-[#120b22] to-[#1a0f2e] border border-purple-500/20 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
 

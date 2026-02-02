@@ -7,114 +7,155 @@ import {
     TouchableOpacity,
     Dimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-const games = [
+const GAMES = [
     {
-        id: 'chromatic-rush',
-        name: 'Chromatic Rush',
-        description: 'Color-based cognitive training',
-        icon: 'color-palette',
-        colors: ['#FF6B6B', '#4ECDC4'],
+        id: "chromatic-rush",
+        title: "Chromatic Rush",
+        desc: "Train your focus and reaction speed.",
+        icon: "flash",
+        colors: ['#3B82F6', '#6366F1'],
+        tag: "ADHD Focus"
     },
     {
-        id: 'sensory-flow',
-        name: 'Sensory Flow',
-        description: 'Sensory processing exercises',
-        icon: 'water',
-        colors: ['#A8E6CF', '#3EECAC'],
+        id: "impulse-guard",
+        title: "Impulse Guard",
+        desc: "Resist the urge. Train impulse control.",
+        icon: "shield",
+        colors: ['#EF4444', '#F97316'],
+        tag: "Impulse Control"
     },
     {
-        id: 'order-shift',
-        name: 'Order Shift',
-        description: 'Pattern recognition',
-        icon: 'grid',
-        colors: ['#FFD93D', '#FFA500'],
+        id: "pattern-release",
+        title: "Pattern Release",
+        desc: "Challenge your urge for perfection.",
+        icon: "grid",
+        colors: ['#10B981', '#14B8A6'],
+        tag: "OCD Exposure"
     },
     {
-        id: 'impulse-guard',
-        name: 'Impulse Guard',
-        description: 'Impulse control training',
-        icon: 'shield',
-        colors: ['#6C5CE7', '#A29BFE'],
+        id: "order-shift",
+        title: "Order Shift",
+        desc: "Adapt quickly to changing rules.",
+        icon: "shuffle",
+        colors: ['#8B5CF6', '#EC4899'],
+        tag: "Cognitive Flex"
     },
     {
-        id: 'emotion-match',
-        name: 'Emotion Match',
-        description: 'Emotional recognition',
-        icon: 'happy',
-        colors: ['#FD79A8', '#FDCB6E'],
+        id: "lumina",
+        title: "Lumina",
+        desc: "Restore light to the world, one step at a time.",
+        icon: "sunny",
+        colors: ['#F59E0B', '#F97316'],
+        tag: "Depression Uplift"
     },
     {
-        id: 'pattern-release',
-        name: 'Pattern Release',
-        description: 'Stress relief patterns',
-        icon: 'infinite',
-        colors: ['#74B9FF', '#0984E3'],
+        id: "neon-rise",
+        title: "Neon Rise",
+        desc: "Build motivation through small wins.",
+        icon: "trending-up",
+        colors: ['#6366F1', '#8B5CF6'],
+        tag: "Activation"
     },
     {
-        id: 'momentum-steps',
-        name: 'Momentum Steps',
-        description: 'Progressive achievement',
-        icon: 'trending-up',
-        colors: ['#00B894', '#00CEC9'],
+        id: "cosmic-flow",
+        title: "Cosmic Flow",
+        desc: "Find your center in a chaotic world.",
+        icon: "pulse",
+        colors: ['#3B82F6', '#6366F1'],
+        tag: "Flow State"
     },
     {
-        id: 'calm-path',
-        name: 'Calm Path',
-        description: 'Mindfulness journey',
-        icon: 'leaf',
-        colors: ['#81C784', '#4CAF50'],
+        id: "emotion-match",
+        title: "Emotion Match",
+        desc: "Practice identifying facial expressions.",
+        icon: "heart",
+        colors: ['#F43F5E', '#EF4444'],
+        tag: "Social Cues"
     },
     {
-        id: 'breath-sync',
-        name: 'Breath Sync',
-        description: 'Breathing exercises',
-        icon: 'pulse',
-        colors: ['#64B5F6', '#2196F3'],
-    },
-    {
-        id: 'light-builder',
-        name: 'Light Builder',
-        description: 'Creative expression',
-        icon: 'bulb',
-        colors: ['#FFB74D', '#FF9800'],
-    },
+        id: "sensory-flow",
+        title: "Sensory Flow",
+        desc: "Calming visual drift without pressure.",
+        icon: "water",
+        colors: ['#14B8A6', '#06B6D4'],
+        tag: "Sensory Rest"
+    }
 ];
 
 export default function GamesScreen({ navigation }: any) {
     const handleGamePress = (gameId: string) => {
-        navigation.navigate('GamePlay', { gameId });
+        // Navigate to specific game or show game details
+        console.log('Game pressed:', gameId);
     };
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Therapeutic Games</Text>
-                <Text style={styles.subtitle}>Choose a game to play</Text>
-            </View>
+            {/* Background Gradient */}
+            <LinearGradient
+                colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                style={styles.backgroundGradient}
+            />
 
-            <ScrollView style={styles.scrollView}>
+            {/* Floating Background Elements */}
+            <View style={[styles.floatingElement, styles.floatingElement1]} />
+            <View style={[styles.floatingElement, styles.floatingElement2]} />
+
+            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <Text style={styles.title}>Neuro Library</Text>
+                    <Text style={styles.subtitle}>
+                        A collection of gentle cognitive exercises designed to support your unique mind.
+                        Choose a tool that resonates with your current need.
+                    </Text>
+                </View>
+
+                {/* Games Grid */}
                 <View style={styles.gamesGrid}>
-                    {games.map((game) => (
+                    {GAMES.map((game, index) => (
                         <TouchableOpacity
                             key={game.id}
                             style={styles.gameCard}
                             onPress={() => handleGamePress(game.id)}
                         >
                             <LinearGradient
-                                colors={game.colors}
-                                style={styles.gameGradient}
+                                colors={[...game.colors, 'rgba(0,0,0,0.1)']}
+                                style={styles.cardGradient}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                             >
-                                <Ionicons name={game.icon as any} size={40} color="white" />
+                                {/* Background Pattern */}
+                                <View style={styles.cardBackground} />
+
+                                <View style={styles.cardContent}>
+                                    {/* Header */}
+                                    <View style={styles.cardHeader}>
+                                        <View style={styles.iconContainer}>
+                                            <Ionicons name={game.icon as any} size={28} color="white" />
+                                        </View>
+                                        <View style={styles.tagContainer}>
+                                            <Text style={styles.tagText}>{game.tag}</Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Content */}
+                                    <View style={styles.gameInfo}>
+                                        <Text style={styles.gameTitle}>{game.title}</Text>
+                                        <Text style={styles.gameDesc}>{game.desc}</Text>
+                                    </View>
+
+                                    {/* Footer */}
+                                    <View style={styles.cardFooter}>
+                                        <Text style={styles.beginText}>Begin journey</Text>
+                                        <Ionicons name="play" size={16} color="rgba(255,255,255,0.8)" />
+                                    </View>
+                                </View>
                             </LinearGradient>
-                            <Text style={styles.gameName}>{game.name}</Text>
-                            <Text style={styles.gameDescription}>{game.description}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -126,61 +167,141 @@ export default function GamesScreen({ navigation }: any) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F3F4F6',
     },
-    header: {
-        padding: 20,
-        paddingTop: 60,
+    backgroundGradient: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+    },
+    floatingElement: {
+        position: 'absolute',
+        borderRadius: 200,
+        opacity: 0.05,
+    },
+    floatingElement1: {
+        width: 384,
+        height: 384,
         backgroundColor: '#8B5CF6',
+        top: height * 0.25,
+        right: width * 0.25,
     },
-    title: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: 'white',
-        marginBottom: 5,
-    },
-    subtitle: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.8)',
+    floatingElement2: {
+        width: 320,
+        height: 320,
+        backgroundColor: '#6366F1',
+        bottom: height * 0.25,
+        left: width * 0.25,
     },
     scrollView: {
         flex: 1,
     },
+    scrollContent: {
+        paddingTop: 60,
+        paddingHorizontal: 24,
+        paddingBottom: 100,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: 48,
+    },
+    title: {
+        fontSize: 32,
+        fontWeight: 'bold',
+        color: 'white',
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 16,
+        color: 'rgba(209, 213, 219, 1)',
+        textAlign: 'center',
+        lineHeight: 24,
+        maxWidth: 320,
+    },
     gamesGrid: {
-        padding: 15,
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
+        gap: 24,
     },
     gameCard: {
-        width: (width - 45) / 2,
-        backgroundColor: 'white',
-        borderRadius: 15,
-        padding: 15,
-        marginBottom: 15,
+        height: 200,
+        borderRadius: 24,
+        overflow: 'hidden',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    gameGradient: {
-        width: '100%',
-        height: 100,
-        borderRadius: 10,
+    cardGradient: {
+        flex: 1,
+        position: 'relative',
+    },
+    cardBackground: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        width: 128,
+        height: 128,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 64,
+        transform: [{ scale: 1.5 }],
+        opacity: 0.3,
+    },
+    cardContent: {
+        flex: 1,
+        padding: 24,
+        justifyContent: 'space-between',
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+    },
+    iconContainer: {
+        width: 56,
+        height: 56,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10,
     },
-    gameName: {
-        fontSize: 16,
+    tagContainer: {
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    tagText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: 'white',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    gameInfo: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    gameTitle: {
+        fontSize: 24,
         fontWeight: 'bold',
-        color: '#1F2937',
-        marginBottom: 5,
+        color: 'white',
+        marginBottom: 8,
     },
-    gameDescription: {
-        fontSize: 12,
-        color: '#6B7280',
-        lineHeight: 16,
+    gameDesc: {
+        fontSize: 14,
+        color: 'rgba(255, 255, 255, 0.9)',
+        lineHeight: 20,
+    },
+    cardFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    beginText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: 'rgba(255, 255, 255, 0.8)',
     },
 });

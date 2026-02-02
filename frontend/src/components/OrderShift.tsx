@@ -206,7 +206,7 @@ export default function OrderShift() {
   };
 
   return (
-    <GameSessionTracker gameName="Order Shift">
+    <GameSessionTracker gameName="Order Shift" gameScore={score}>
       <div className="min-h-screen bg-gradient-to-br from-[#0b0616] via-[#1a0b2e] to-[#0b0616] flex items-center justify-center p-4">
         <div className="w-full max-w-lg bg-gradient-to-br from-[#120b22] to-[#1a0f2e] border border-purple-500/20 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
 

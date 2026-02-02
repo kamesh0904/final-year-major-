@@ -307,7 +307,7 @@ export default function CalmPath() {
   }, []);
 
   return (
-    <GameSessionTracker gameName="Calm Path">
+    <GameSessionTracker gameName="Calm Path" gameScore={score}>
       <div className="min-h-screen bg-[#0b0616] text-white flex flex-col items-center justify-center p-4">
 
         {/* Header */}

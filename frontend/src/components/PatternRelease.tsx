@@ -131,7 +131,7 @@ export default function PatternRelease() {
   const getColorName = (cls: string) => cls.replace("bg-", "").replace("-500", "").toUpperCase();
 
   return (
-    <GameSessionTracker gameName="Pattern Release">
+    <GameSessionTracker gameName="Pattern Release" gameScore={score}>
       <div className="min-h-screen bg-[#0b0616] text-white flex flex-col items-center justify-center p-4">
 
         {/* Header */}

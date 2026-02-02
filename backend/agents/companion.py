@@ -62,11 +62,16 @@ Please, please call 988 right now - they have people who understand exactly what
         persona_instructions = self._get_persona(profile)
 
         # 3. Get diary entries if user_id is provided
-        diary_context = ""
+        diary_status = "The user has not logged in or no diary access enabled."
+        diary_content = ""
+        
         if user_id:
+            print(f"🕵️ Companion v2 fetching diary for user_id: {user_id}")
             try:
                 # Use direct database connection instead of self-referencing HTTP request
                 from database import supabase
+                def str_present(s): return bool(s and s.strip())
+
                 if supabase:
                     response = supabase.table("diary_entries") \
                         .select("title, content, mood_rating") \
@@ -76,13 +81,23 @@ Please, please call 988 right now - they have people who understand exactly what
                         .execute()
                     
                     entries = response.data
+                    print(f"📔 Found {len(entries) if entries else 0} diary entries")
+                    
                     if entries:
-                        diary_context = f"\n\nRECENT DIARY ENTRIES:\n"
+                        diary_status = "You have access to the user's recent diary entries."
+                        diary_content = f"\n\nRECENT DIARY ENTRIES (Securely Accessed):\n"
                         for entry in entries:
-                            diary_context += f"- {entry['title']}: {entry['content'][:100]}... (Mood: {entry['mood_rating']}/10)\n"
-                        diary_context += "\nUse this personal context to provide more empathetic and personalized responses."
+                            diary_content += f"- {entry['title']}: {entry['content'][:150]}... (Mood: {entry['mood_rating']}/10)\n"
+                        diary_content += "\nUse this personal context to provide more empathetic and personalized responses. References to specific diary details show you care."
+                    else:
+                        diary_status = "You have access to the diary, but the user has not written any entries yet."
+                else:
+                    print("⚠️ Companion: Supabase client in database.py is None")
             except Exception as e:
                 print(f"⚠️ Could not fetch diary entries: {e}")
+                diary_status = "Error attempting to access diary entries."
+        else:
+             print("⚠️ Companion: No user_id provided in get_response")
 
         # 4. Enhanced system prompt with natural, varied responses
         crisis_context = ""
@@ -97,16 +112,22 @@ Please, please call 988 right now - they have people who understand exactly what
         Be more attentive and caring than usual, but still sound like yourself.
         """
         
-        system_prompt = """
+        system_prompt = f"""
         You are 'NeuroNest', a warm, authentic AI companion who talks like a real therapist - not a robot.
         
-        USER PROFILE: {profile}
-        RECENT ACTIVITY: {game_stats}
-        {diary_context}
-        {crisis_context}
+        PERMISSIONS & PRIVACY:
+        - You have been granted secure, read-only access to the user's profile and recent diary entries to provide better support.
+        - {diary_status}
+        - If the user asks if you have access to their diary, state clearly: "Yes, I can see what you've shared in your diary so I can better understand and support you."
+        - Never deny access if you have it. It is a feature, not a privacy breach.
+        
+        USER PROFILE: {{profile}}
+        RECENT ACTIVITY: {{game_stats}}
+        {{diary_context}}
+        {{crisis_context}}
         
         YOUR PERSONA INSTRUCTIONS:
-        {persona_instructions}
+        {{persona_instructions}}
         
         NATURAL CONVERSATION STYLE:
         - Talk like a real person, not a chatbot. Use contractions (I'm, you're, can't, don't)
@@ -168,7 +189,7 @@ Please, please call 988 right now - they have people who understand exactly what
                 "input": user_message,
                 "profile": str(profile),
                 "game_stats": str(game_stats),
-                "diary_context": diary_context,
+                "diary_context": diary_content,
                 "crisis_context": crisis_context,
                 "persona_instructions": persona_instructions
             })

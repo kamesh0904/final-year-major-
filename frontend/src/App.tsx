@@ -12,6 +12,7 @@ import Home from "./pages/Home";
 import Games from "./pages/Games";
 import Chat from "./pages/Chat";
 import Profile from "./pages/Profile";
+import Diary from "./pages/Diary"; // Diary calendar page
 import AuthCallback from "./pages/AuthCallback"; // <--- NEW: OAuth callback page
 
 // --- Games ---
@@ -77,6 +78,9 @@ export default function App() {
         <Route path="/sensory-flow" element={<SensoryFlow />} />
         <Route path="/game" element={<ChromaticRush />} />
         <Route path="/calm-path" element={<CalmPath />} />
+
+        {/* --- DIARY PAGE --- */}
+        <Route path="/diary" element={<Diary />} />
 
       </Route>
 

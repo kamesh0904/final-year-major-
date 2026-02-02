@@ -77,6 +77,32 @@ export async function submitGameSession(data: {
   return res.json();
 }
 
+export async function getPersonalBest(gameName: string): Promise<number> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  try {
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .select('score')
+      .eq('user_id', user.id)
+      .eq('game_name', gameName)
+      .order('score', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      console.error("Error fetching personal best:", error);
+      return 0;
+    }
+
+    return data?.score || 0;
+  } catch (err) {
+    console.error("Error in getPersonalBest:", err);
+    return 0;
+  }
+}
+
 // --- 4. Contact Info Update ---
 export async function updateContactInfo(data: {
   address: string;

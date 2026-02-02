@@ -348,7 +348,7 @@ export default function SensoryFlow() {
   };
 
   return (
-    <GameSessionTracker gameName="Sensory Flow">
+    <GameSessionTracker gameName="Sensory Flow" gameScore={score}>
       <div className="relative min-h-screen bg-gradient-to-br from-[#0b0616] via-[#1a0b2e] to-[#0b0616] overflow-hidden">
 
         {/* UI Overlay */}

@@ -69,7 +69,13 @@ app.add_middleware(
 
 # ------------------ AI Agent Init ------------------
 # Initialize these inside a try/catch in case API Key is missing
+observer = None
+architect = None
+companion = None
+report_llm = None
+
 try:
+    print("🤖 Initializing AI Agents...")
     observer = ObserverAgent()
     architect = ArchitectAgent()
     companion = CompanionAgent()
@@ -81,7 +87,9 @@ try:
     )
     print("✅ AI agents initialized successfully")
 except Exception as e:
-    print(f"⚠️ AI Agent Init Failed (Check OpenAI Key): {e}")
+    print(f"⚠️ AI Agent Init Failed: {e}")
+    import traceback
+    traceback.print_exc()
 
 # ------------------ Health Check ------------------
 @app.get("/")
@@ -146,6 +154,14 @@ class DiaryPasswordVerify(BaseModel):
     user_id: str
     password: str
 
+class DiaryEntryCreate(BaseModel):
+    user_id: str
+    entry_date: str  # ISO format date string (YYYY-MM-DD)
+    title: str
+    content: str
+    mood_rating: int
+    tags: List[str] = []
+
 # ------------------ Routes ------------------
 
 
@@ -189,12 +205,19 @@ def submit_game_session(payload: GameSessionInput):
 
 @app.post("/chat", response_model=Dict[str, str])
 def chat_with_companion(payload: ChatRequest):
+    if not companion:
+        print("❌ Chat request failed: Companion agent not initialized")
+        return {"response": "I'm currently undergoing maintenance (AI modules offline). Please try again in a few minutes."}
+
     lc_history = []
     for msg in payload.history:
         if msg["role"] == "user":
             lc_history.append(HumanMessage(content=msg["content"]))
         else:
             lc_history.append(AIMessage(content=msg["content"]))
+    
+    # Debug incoming user_id
+    print(f"💬 Chatting with user_id: {payload.user_id}")
 
     response_text = companion.get_response(
         user_message=payload.message,
@@ -323,21 +346,36 @@ async def create_diary_password(payload: DiaryPasswordCreate):
 @app.post("/verify-diary-password")
 async def verify_diary_password(payload: DiaryPasswordVerify):
     """Verify the diary password for the user"""
+    print(f"🔐 Verifying diary password for user: {payload.user_id}")
     try:
         # Get the stored password hash
-        result = supabase.table("profiles").select("diary_password_hash").eq("id", payload.user_id).single().execute()
+        response = supabase.table("profiles").select("diary_password_hash").eq("id", payload.user_id).single().execute()
         
-        if not result.data or not result.data.get("diary_password_hash"):
+        # Check if user exists and has a password
+        if not response.data:
+            print("⚠️ User profile not found for diary verification")
+            return {"valid": False, "message": "User profile not found"}
+            
+        data = response.data
+        if not data.get("diary_password_hash"):
+            print("⚠️ No diary password hash found in profile")
             return {"valid": False, "message": "No diary password set"}
         
-        stored_hash = result.data["diary_password_hash"]
+        stored_hash = data["diary_password_hash"]
+        
+        # Check if stored_hash is valid bcrypt hash
+        if not stored_hash or not stored_hash.startswith("$2b$"):
+             print("⚠️ Invalid stored hash format")
+             return {"valid": False, "message": "Stored password data is corrupt"}
+
         password_bytes = payload.password.encode('utf-8')
+        hash_bytes = stored_hash.encode('utf-8')
         
         # Verify the password
-        is_valid = bcrypt.checkpw(password_bytes, stored_hash.encode('utf-8'))
+        is_valid = bcrypt.checkpw(password_bytes, hash_bytes)
         
         if is_valid:
-            print(f"📔 Diary access granted for user {payload.user_id}")
+            print(f"✅ Diary access granted for user {payload.user_id}")
             return {"valid": True, "message": "Password verified"}
         else:
             print(f"🚫 Diary access denied for user {payload.user_id}")
@@ -345,7 +383,8 @@ async def verify_diary_password(payload: DiaryPasswordVerify):
             
     except Exception as e:
         print(f"❌ Diary Password Verification Error: {e}")
-        return {"valid": False, "message": str(e)}
+        # Return 200 even on error to handle gracefully in frontend, but with valid: false
+        return {"valid": False, "message": f"Server error: {str(e)}"}
 
 
 @app.get("/diary-entries/{user_id}")
@@ -367,6 +406,83 @@ async def get_diary_entries_for_companion(user_id: str):
     except Exception as e:
         print(f"❌ Diary Entries Retrieval Error: {e}")
         return {"entries": [], "error": str(e)}
+
+
+@app.get("/diary-entries-by-date/{user_id}")
+async def get_diary_entries_by_date(user_id: str, start_date: str, end_date: str):
+    """Get diary entries for a date range (for calendar view)"""
+    try:
+        print(f"📅 Fetching diary entries for {user_id} from {start_date} to {end_date}")
+        
+        result = supabase.table("diary_entries").select(
+            "id, title, content, mood_rating, tags, entry_date, created_at"
+        ).eq("user_id", user_id).gte("entry_date", start_date).lte("entry_date", end_date).order("entry_date", desc=True).execute()
+        
+        entries = result.data if result.data else []
+        
+        print(f"📖 Retrieved {len(entries)} diary entries for date range")
+        return {"entries": entries}
+        
+    except Exception as e:
+        print(f"❌ Diary Entries by Date Retrieval Error: {e}")
+        return {"entries": [], "error": str(e)}
+
+
+@app.post("/create-diary-entry")
+async def create_diary_entry(payload: DiaryEntryCreate):
+    """Create a new diary entry with a specific date"""
+    try:
+        # Validate that entry_date is not in the future
+        from datetime import date as date_lib
+        entry_date = date_lib.fromisoformat(payload.entry_date)
+        today = date_lib.today()
+        
+        if entry_date > today:
+            print(f"⚠️ Attempt to create future diary entry for {payload.entry_date}")
+            return {"status": "error", "message": "Cannot create diary entries for future dates"}
+        
+        # Create the diary entry
+        result = supabase.table("diary_entries").insert({
+            "user_id": payload.user_id,
+            "entry_date": payload.entry_date,
+            "title": payload.title,
+            "content": payload.content,
+            "mood_rating": payload.mood_rating,
+            "tags": payload.tags
+        }).execute()
+        
+        if result.data:
+            print(f"📝 Diary entry created for {payload.user_id} on {payload.entry_date}")
+            return {"status": "success", "entry": result.data[0]}
+        else:
+            return {"status": "error", "message": "Failed to create diary entry"}
+            
+    except ValueError as e:
+        print(f"❌ Invalid date format: {e}")
+        return {"status": "error", "message": "Invalid date format. Use YYYY-MM-DD"}
+    except Exception as e:
+        print(f"❌ Diary Entry Creation Error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.delete("/diary-entry/{entry_id}")
+async def delete_diary_entry(entry_id: str, user_id: str):
+    """Delete a diary entry (with user verification)"""
+    try:
+        # Verify that the entry belongs to the user before deleting
+        result = supabase.table("diary_entries").delete().eq(
+            "id", entry_id
+        ).eq("user_id", user_id).execute()
+        
+        if result.data:
+            print(f"🗑️ Diary entry {entry_id} deleted by user {user_id}")
+            return {"status": "success", "message": "Entry deleted"}
+        else:
+            return {"status": "error", "message": "Entry not found or unauthorized"}
+            
+    except Exception as e:
+        print(f"❌ Diary Entry Deletion Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 # Include post-game questionnaire routes

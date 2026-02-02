@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Trophy, Play, RotateCcw, Zap, ArrowUp, Layers, Heart, Sparkles } from "lucide-react";
-import { submitGameSession } from "../api/neuroNestApi";
+import { submitGameSession, getPersonalBest } from "../api/neuroNestApi";
 import { supabase } from "../lib/supabase";
 import GameSessionTracker from "./GameSessionTracker";
 
@@ -54,6 +54,7 @@ export default function MomentumSteps() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [stack, setStack] = useState<Block[]>([]);
   const [currentBlock, setCurrentBlock] = useState<{ width: number; left: number; direction: 1 | -1 }>({
@@ -61,6 +62,10 @@ export default function MomentumSteps() {
     left: 0,
     direction: 1,
   });
+
+  useEffect(() => {
+    getPersonalBest("Momentum Steps").then(setHighScore);
+  }, []);
 
   // Feedback State
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -199,7 +204,11 @@ export default function MomentumSteps() {
     };
 
     setStack(prev => [...prev, newBlock]);
-    setScore(prev => prev + 1);
+    setScore(prev => {
+      const newScore = prev + 1;
+      if (newScore > highScore) setHighScore(newScore); // Update high score locally
+      return newScore;
+    });
 
     // Spawn next block
     setCurrentBlock({
@@ -220,7 +229,7 @@ export default function MomentumSteps() {
   };
 
   return (
-    <GameSessionTracker gameName="Momentum Steps">
+    <GameSessionTracker gameName="Momentum Steps" gameScore={score}>
       <div className="min-h-screen bg-[#0b0616] text-white flex flex-col items-center justify-center p-4">
 
         {/* Header */}

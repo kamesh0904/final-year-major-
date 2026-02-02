@@ -5,7 +5,7 @@ import { User, Trophy, Flame, MessageSquare, Camera, ArrowLeft, Loader2, MapPin,
 import WeeklyReportButton from "../components/WeeklyReportButton";
 import DailyReportButton from "../components/DailyReportButton";
 import { updateContactInfo } from "../api/neuroNestApi";
-import DiarySection from "../components/DiarySection";
+import DiaryAccess from "../components/DiaryAccess";
 import TodaysGentleGoal from "../components/TodaysGentleGoal";
 
 export default function Profile() {
@@ -432,9 +432,9 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Personal Diary */}
+          {/* Personal Diary Access */}
           <div className="animate-fade-in" style={{ animationDelay: '1.0s' }}>
-            <DiarySection userId={profile?.id || ""} />
+            <DiaryAccess />
           </div>
 
         </div>

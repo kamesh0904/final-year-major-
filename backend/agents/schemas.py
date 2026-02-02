@@ -46,11 +46,11 @@ class GameSessionInput(BaseModel):
     """
     Data coming from the Frontend after a game.
     """
-    user_id: str  # <--- CRITICAL: Required for Supabase
+    user_id: str
     game_name: str
     duration_seconds: int
     score: int
-    high_score: int
-    mistakes: int
+    high_score: Optional[int] = 0
+    mistakes: Optional[int] = 0
     difficulty_level: int
-    feedback: Dict[str, str]  # The answers from the Feedback Modal
+    feedback: Optional[Dict[str, str]] = {}
