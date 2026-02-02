@@ -179,6 +179,16 @@ class DiaryOTPVerify(BaseModel):
 # ------------------ Routes ------------------
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "service": "NeuroNest API",
+        "timestamp": datetime.datetime.now().isoformat()
+    }
+
+
 @app.get("/")
 def root():
     return {

@@ -17,6 +17,7 @@ export default function ForgotDiaryPassword() {
     const [userEmail, setUserEmail] = useState("");
     const [loginPassword, setLoginPassword] = useState("");
     const [otp, setOtp] = useState("");
+    const [displayedOTP, setDisplayedOTP] = useState(""); // Store OTP to display
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -108,10 +109,13 @@ export default function ForgotDiaryPassword() {
 
             const result = await response.json();
             if (result.status === 'success') {
-                alert("OTP sent to your email! Check your inbox.");
-                // In development, show OTP
+                // Display OTP on screen if available (development mode)
                 if (result.otp) {
-                    console.log("OTP (dev only):", result.otp);
+                    setDisplayedOTP(result.otp);
+                    setOtp(result.otp); // Auto-fill the OTP
+                    alert(`OTP Generated: ${result.otp}\n\nThe OTP has been auto-filled for you!`);
+                } else {
+                    alert("OTP sent to your email! Check your inbox.");
                 }
             } else {
                 alert(result.message || "Failed to send OTP");
@@ -261,6 +265,19 @@ export default function ForgotDiaryPassword() {
                                 {submitting ? "Sending OTP..." : "Send OTP"}
                             </button>
 
+                            {/* Display OTP if available */}
+                            {displayedOTP && (
+                                <div className="p-4 bg-purple-500/20 border border-purple-500/30 rounded-2xl">
+                                    <p className="text-sm text-gray-300 mb-2 text-center">Your OTP Code:</p>
+                                    <div className="text-3xl font-bold text-center text-purple-300 tracking-widest">
+                                        {displayedOTP}
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2 text-center">
+                                        Enter this code below to reset your password
+                                    </p>
+                                </div>
+                            )}
+
                             <form onSubmit={handleOTPReset} className="space-y-4 pt-4 border-t border-white/10">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -276,7 +293,7 @@ export default function ForgotDiaryPassword() {
                                         required
                                     />
                                     <p className="text-xs text-gray-400 mt-1">
-                                        Check your email for the 6-digit code
+                                        {displayedOTP ? "Enter the code shown above" : "Check your email for the 6-digit code"}
                                     </p>
                                 </div>
 
