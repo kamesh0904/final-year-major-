@@ -352,8 +352,7 @@ async def create_diary_password(payload: DiaryPasswordCreate):
         
         # Update the user's profile with the hashed password
         result = supabase.table("profiles").update({
-            "diary_password_hash": password_hash,
-            "diary_created_at": datetime.datetime.now().isoformat()
+            "diary_password_hash": password_hash
         }).eq("id", payload.user_id).execute()
         
         if result.data:
@@ -474,8 +473,7 @@ async def reset_diary_password(payload: DiaryPasswordReset):
         
         # Update diary password hash
         update_response = supabase.table("profiles").update({
-            "diary_password_hash": new_hash,
-            "diary_created_at": datetime.datetime.now().isoformat()
+            "diary_password_hash": new_hash
         }).eq("id", payload.user_id).execute()
         
         print(f"✅ Diary password reset successful for user {payload.user_id}")
@@ -608,8 +606,7 @@ async def verify_otp_and_reset_diary(payload: DiaryOTPVerify):
         
         # Update diary password hash
         supabase.table("profiles").update({
-            "diary_password_hash": new_hash,
-            "diary_created_at": datetime.datetime.now().isoformat()
+            "diary_password_hash": new_hash
         }).eq("id", payload.user_id).execute()
         
         # Mark OTP as used
