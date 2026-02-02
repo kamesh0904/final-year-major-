@@ -13,6 +13,7 @@ import Games from "./pages/Games";
 import Chat from "./pages/Chat";
 import Profile from "./pages/Profile";
 import Diary from "./pages/Diary"; // Diary calendar page
+import ForgotDiaryPassword from "./pages/ForgotDiaryPassword"; // Forgot diary password
 import AuthCallback from "./pages/AuthCallback"; // <--- NEW: OAuth callback page
 
 // --- Games ---
@@ -81,6 +82,7 @@ export default function App() {
 
         {/* --- DIARY PAGE --- */}
         <Route path="/diary" element={<Diary />} />
+        <Route path="/forgot-diary-password" element={<ForgotDiaryPassword />} />
 
       </Route>
 

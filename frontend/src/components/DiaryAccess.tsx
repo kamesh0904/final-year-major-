@@ -123,6 +123,20 @@ export default function DiaryAccess() {
                         </button>
                     </div>
                 </form>
+                ) : (
+                <div>
+                    <button onClick={() => setShowPasswordInput(true)} className="btn-nature w-full">
+                        <Lock size={16} />
+                        Access Your Diary
+                        <ArrowRight size={16} />
+                    </button>
+                    <button
+                        onClick={() => navigate('/forgot-diary-password')}
+                        className="text-sm text-purple-400 hover:text-purple-300 transition-colors mt-3 text-center w-full"
+                    >
+                        Forgot your diary password?
+                    </button>
+                </div>
 
                 <p className="text-xs text-gray-400 mt-4 text-center leading-relaxed">
                     Your diary is protected and only accessible to you and your AI companion
