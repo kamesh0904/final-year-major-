@@ -92,51 +92,55 @@ export default function DiaryAccess() {
                     <h3 className="text-white font-bold">Enter Diary Password</h3>
                 </div>
 
-                <form onSubmit={handleDiaryAccess} className="space-y-4">
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your diary password..."
-                        className="input-calm"
-                        required
-                        autoFocus
-                    />
+                {showPasswordInput ? (
+                    <form onSubmit={handleDiaryAccess} className="space-y-4">
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your diary password..."
+                            className="input-calm"
+                            required
+                            autoFocus
+                        />
 
-                    <div className="flex gap-3">
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="btn-nature flex-1 disabled:opacity-50"
-                        >
-                            {loading ? "Verifying..." : "Access Diary"}
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="btn-nature flex-1 disabled:opacity-50"
+                            >
+                                {loading ? "Verifying..." : "Access Diary"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowPasswordInput(false);
+                                    setPassword("");
+                                }}
+                                className="px-6 py-3 glass rounded-2xl text-gray-300 hover:text-white transition-all duration-300 hover:bg-white/10"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+
                         <button
                             type="button"
-                            onClick={() => {
-                                setShowPasswordInput(false);
-                                setPassword("");
-                            }}
-                            className="px-6 py-3 glass rounded-2xl text-gray-300 hover:text-white transition-all duration-300 hover:bg-white/10"
+                            onClick={() => navigate('/forgot-diary-password')}
+                            className="text-sm text-purple-400 hover:text-purple-300 transition-colors text-center w-full"
                         >
-                            Cancel
+                            Forgot your diary password?
+                        </button>
+                    </form>
+                ) : (
+                    <div>
+                        <button onClick={() => setShowPasswordInput(true)} className="btn-nature w-full">
+                            <Lock size={16} />
+                            Access Your Diary
+                            <ArrowRight size={16} />
                         </button>
                     </div>
-                </form>
-                ) : (
-                <div>
-                    <button onClick={() => setShowPasswordInput(true)} className="btn-nature w-full">
-                        <Lock size={16} />
-                        Access Your Diary
-                        <ArrowRight size={16} />
-                    </button>
-                    <button
-                        onClick={() => navigate('/forgot-diary-password')}
-                        className="text-sm text-purple-400 hover:text-purple-300 transition-colors mt-3 text-center w-full"
-                    >
-                        Forgot your diary password?
-                    </button>
-                </div>
+                )}
 
                 <p className="text-xs text-gray-400 mt-4 text-center leading-relaxed">
                     Your diary is protected and only accessible to you and your AI companion
