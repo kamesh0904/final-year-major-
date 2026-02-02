@@ -410,6 +410,33 @@ async def verify_diary_password(payload: DiaryPasswordVerify):
         # Return 200 even on error to handle gracefully in frontend, but with valid: false
         return {"valid": False, "message": f"Server error: {str(e)}"}
 
+
+@app.get("/debug-diary-password/{user_id}")
+async def debug_diary_password(user_id: str):
+    """Debug endpoint to check if user has diary password set"""
+    print(f"🔍 Checking diary password status for user: {user_id}")
+    try:
+        response = supabase.table("profiles").select("diary_password_hash, diary_created_at, email").eq("id", user_id).single().execute()
+        
+        if not response.data:
+            return {"status": "error", "message": "User not found"}
+        
+        data = response.data
+        has_password = bool(data.get("diary_password_hash"))
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "email": data.get("email"),
+            "has_diary_password": has_password,
+            "diary_created_at": data.get("diary_created_at"),
+            "password_hash_preview": data.get("diary_password_hash", "")[:20] + "..." if has_password else None,
+            "message": "Diary password is set" if has_password else "NO DIARY PASSWORD SET - User needs to create one first!"
+        }
+    except Exception as e:
+        print(f"❌ Debug Error: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.post("/reset-diary-password")
 async def reset_diary_password(payload: DiaryPasswordReset):
     """Reset diary password using login password verification"""
@@ -465,6 +492,9 @@ async def send_diary_reset_otp(payload: DiaryOTPRequest):
     try:
         import random
         import string
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
         
         # Generate 6-digit OTP
         otp_code = ''.join(random.choices(string.digits, k=6))
@@ -477,26 +507,70 @@ async def send_diary_reset_otp(payload: DiaryOTPRequest):
             "expires_at": expires_at.isoformat()
         }).execute()
         
-        # Send OTP email using Supabase Auth
-        # Note: This uses Supabase's built-in email functionality (magic link)
-        # The OTP code will be sent in a custom email template
+        # Send actual email with OTP
         try:
-            # For now, we'll use a simple approach with Supabase's reset password email
-            # You can customize this in Supabase dashboard -> Authentication -> Email Templates
-            supabase.auth.reset_password_for_email(
-                payload.email,
-                {"redirect_to": "https://neuronest-3bc25.web.app/forgot-diary-password"}
-            )
+            # Email configuration - use environment variables for security
+            sender_email = os.getenv("SMTP_EMAIL", "noreply@neuronest.app")
+            sender_password = os.getenv("SMTP_PASSWORD", "")
+            smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+            smtp_port = int(os.getenv("SMTP_PORT", "587"))
+            
+            # Create email message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = "Your NeuroNest Diary Password Reset OTP"
+            message["From"] = f"NeuroNest <{sender_email}>"
+            message["To"] = payload.email
+            
+            # Create HTML email body
+            html_body = f"""
+            <html>
+              <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center;">
+                  <h1 style="color: white; margin: 0;">🔐 Diary Password Reset</h1>
+                </div>
+                <div style="background: #f7f7f7; padding: 30px; border-radius: 10px; margin-top: 20px;">
+                  <p style="font-size: 16px; color: #333;">Hello,</p>
+                  <p style="font-size: 16px; color: #333;">You requested to reset your diary password. Here's your OTP code:</p>
+                  <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                    <h2 style="color: #667eea; font-size: 40px; letter-spacing: 8px; margin: 0;">{otp_code}</h2>
+                  </div>
+                  <p style="font-size: 14px; color: #666;">This code will expire in <strong>10 minutes</strong>.</p>
+                  <p style="font-size: 14px; color: #666;">If you didn't request this, please ignore this email.</p>
+                </div>
+                <div style="text-align: center; margin-top: 20px; color: #999; font-size: 12px;">
+                  <p>NeuroNest - Your Mental Wellness Companion</p>
+                </div>
+              </body>
+            </html>
+            """
+            
+            # Attach HTML body
+            html_part = MIMEText(html_body, "html")
+            message.attach(html_part)
+            
+            # Send email only if SMTP is configured
+            if sender_password:
+                with smtplib.SMTP(smtp_server, smtp_port) as server:
+                    server.starttls()
+                    server.login(sender_email, sender_password)
+                    server.send_message(message)
+                print(f"✅ Email sent successfully to {payload.email}")
+                email_sent = True
+            else:
+                print("⚠️ SMTP not configured, email not sent")
+                email_sent = False
+                
         except Exception as email_error:
-            print(f"⚠️ Email send warning: {email_error}")
-            # Continue anyway as we stored the OTP
+            print(f"⚠️ Email send error: {email_error}")
+            email_sent = False
         
-        print(f"✅ OTP sent successfully: {otp_code}")
-        # In development, return OTP for testing. Remove in production!
+        print(f"✅ OTP generated: {otp_code}")
+        # Return OTP in development mode or if email failed
         return {
             "status": "success", 
-            "message": "OTP sent to your email",
-            "otp": otp_code if not settings.is_production else None  # Only in dev
+            "message": "OTP sent to your email" if email_sent else "OTP generated (email not configured)",
+            "otp": otp_code if (not settings.is_production or not email_sent) else None,
+            "email_sent": email_sent
         }
         
     except Exception as e:
