@@ -43,8 +43,9 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
-package-lock.json
-yarn.lock
+# Only ignore lock files at root level, not in subdirectories (mobile needs its lock file for EAS)
+/package-lock.json
+/yarn.lock
 
 # Build outputs
 frontend/dist/
