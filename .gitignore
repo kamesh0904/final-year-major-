@@ -140,3 +140,8 @@ credentials/
 # Misc
 .cache/
 .parcel-cache/
+
+# Large ML/data files
+*.csv
+backend/ml/*.pkl
+backend/ml/audio_speech_actors_01-24/
