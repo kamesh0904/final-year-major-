@@ -25,9 +25,8 @@ export default function Login() {
       if (error) throw error;
 
       if (data.user) {
-        // Save Token
-        localStorage.setItem("user", JSON.stringify(data.user));
-        localStorage.setItem("token", data.session?.access_token || "");
+        // Supabase handles session storage automatically via cookies
+        // No need to manually store tokens in localStorage
 
         // 2. Check if Profile is Complete
         const { data: profile } = await supabase

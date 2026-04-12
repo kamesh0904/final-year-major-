@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { BG_GRADIENT, GRADIENT_PRIMARY, ORB } from '../config/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,7 +23,14 @@ export default function SignupScreen({ navigation }: any) {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const { signUp } = useAuth();
+    const { signUp, signInWithGoogle, session } = useAuth();
+
+    // Navigate to Main when session is set (e.g. after Google sign-in)
+    React.useEffect(() => {
+        if (session) {
+            navigation.replace('Main');
+        }
+    }, [session]);
 
     const handleSignup = async () => {
         if (!email || !password || !confirmPassword) {
@@ -55,11 +63,23 @@ export default function SignupScreen({ navigation }: any) {
         }
     };
 
+    const handleGoogleSignup = async () => {
+        setLoading(true);
+        try {
+            await signInWithGoogle();
+            // Navigation handled by session useEffect above
+        } catch (error: any) {
+            Alert.alert('Google Signup Failed', error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                colors={BG_GRADIENT}
                 style={styles.backgroundGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -145,7 +165,7 @@ export default function SignupScreen({ navigation }: any) {
                                     disabled={loading}
                                 >
                                     <LinearGradient
-                                        colors={['rgba(99, 102, 241, 0.8)', 'rgba(139, 92, 246, 0.8)']}
+                                        colors={GRADIENT_PRIMARY}
                                         style={styles.buttonGradient}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
@@ -159,6 +179,23 @@ export default function SignupScreen({ navigation }: any) {
                                             <Text style={styles.buttonText}>Sign Up</Text>
                                         )}
                                     </LinearGradient>
+                                </TouchableOpacity>
+
+                                {/* Divider */}
+                                <View style={styles.dividerContainer}>
+                                    <View style={styles.dividerLine} />
+                                    <Text style={styles.dividerText}>OR</Text>
+                                    <View style={styles.dividerLine} />
+                                </View>
+
+                                {/* Google Signup Button */}
+                                <TouchableOpacity
+                                    style={[styles.googleButton, loading && styles.buttonDisabled]}
+                                    onPress={handleGoogleSignup}
+                                    disabled={loading}
+                                >
+                                    <Ionicons name="logo-google" size={22} color="#1F2937" />
+                                    <Text style={styles.googleButtonText}>Continue with Google</Text>
                                 </TouchableOpacity>
 
                                 {/* Login Link */}
@@ -316,6 +353,35 @@ const styles = StyleSheet.create({
     buttonText: {
         color: 'white',
         fontSize: 18,
+        fontWeight: '600',
+    },
+    dividerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 20,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    dividerText: {
+        color: 'rgba(156, 163, 175, 1)',
+        paddingHorizontal: 16,
+        fontSize: 14,
+    },
+    googleButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'white',
+        paddingVertical: 14,
+        borderRadius: 16,
+        gap: 12,
+    },
+    googleButtonText: {
+        color: '#1F2937',
+        fontSize: 16,
         fontWeight: '600',
     },
     linkContainer: {

@@ -1,12 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { Play, Activity, Target, Brain, Zap, Sunrise, Moon } from "lucide-react";
+import { Play, Brain } from "lucide-react";
 import DiaryAccess from "../components/DiaryAccess";
 import TodaysGentleGoal from "../components/TodaysGentleGoal";
+import { logger } from "../utils/logger";
+
+// --- Types ---
+interface GameInfo {
+  path: string;
+  desc: string;
+  color: string;
+  border: string;
+}
+
+type ScoresMap = Record<string, number>;
 
 // --- 1. CONFIGURATION: Game Data & Recommendations ---
-const GAME_LIBRARY: Record<string, { path: string; desc: string; color: string; border: string }> = {
+const GAME_LIBRARY: Record<string, GameInfo> = {
   "Chromatic Rush": { path: "/game", desc: "Train your focus and reaction speed.", color: "from-blue-900/50 to-purple-900/50", border: "hover:border-purple-500/50" },
   "Impulse Guard": { path: "/impulse-guard", desc: "Resist the urge. Train impulse control.", color: "from-red-900/50 to-orange-900/50", border: "hover:border-red-500/50" },
   "Pattern Release": { path: "/pattern-release", desc: "Challenge your urge for perfection.", color: "from-emerald-900/50 to-teal-900/50", border: "hover:border-emerald-500/50" },
@@ -30,91 +41,114 @@ const PROFILE_MAP: Record<string, string[]> = {
 
 export default function Home() {
   const [username, setUsername] = useState("Traveler");
-  const [scores, setScores] = useState<Record<string, number>>({});
+  const [scores, setScores] = useState<ScoresMap>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<string[]>(PROFILE_MAP["General"]);
   const [userId, setUserId] = useState<string>("");
 
-  useEffect(() => {
-    loadProfile();
+  // --- UPDATED RECOMMENDATION LOGIC ---
+  const calculateRecommendations = useCallback((currentScores: ScoresMap) => {
+    if (!currentScores || Object.keys(currentScores).length === 0) return;
+
+    const sortedCategories = Object.entries(currentScores)
+      .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)
+      .map(([category]) => category);
+
+    const primaryCat = sortedCategories[0];
+    const secondaryCat = sortedCategories[1];
+
+    const normalize = (key: string) => (key?.includes("Autism") ? "Autism" : key);
+
+    const primaryGames = PROFILE_MAP[normalize(primaryCat)] || PROFILE_MAP["General"];
+    const secondaryGames = PROFILE_MAP[normalize(secondaryCat)] || PROFILE_MAP["General"];
+
+    const finalMix = [
+      primaryGames[0],
+      primaryGames[1],
+      secondaryGames[0]
+    ].filter(Boolean);
+
+    const uniqueMix = [...new Set(finalMix)];
+    setRecommendations(uniqueMix);
   }, []);
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
-      // 1. INSTANT LOAD: Check Local Storage First
-      const localScores = localStorage.getItem("userScores");
+      setError(null);
 
+      const localScores = localStorage.getItem("userScores");
       if (localScores) {
-        const parsedScores = JSON.parse(localScores);
-        setScores(parsedScores);
-        calculateRecommendations(parsedScores);
-        setLoading(false);
+        try {
+          const parsedScores = JSON.parse(localScores) as ScoresMap;
+          setScores(parsedScores);
+          calculateRecommendations(parsedScores);
+          setLoading(false);
+        } catch (parseError) {
+          logger.error("Failed to parse local scores", parseError);
+        }
       }
 
-      // 2. BACKGROUND SYNC: Check Supabase
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
 
       if (user) {
         const name = user.email?.split("@")[0] || "Traveler";
         setUsername(name);
         setUserId(user.id);
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('scores, profile_type')
           .eq('id', user.id)
           .single();
 
-        if (profile && profile.scores) {
+        if (profileError && profileError.code !== 'PGRST116') {
+          logger.error("Profile fetch error", profileError);
+        }
+
+        if (profile?.scores) {
           setScores(profile.scores);
           calculateRecommendations(profile.scores);
           localStorage.setItem("userScores", JSON.stringify(profile.scores));
         }
       }
-    } catch (error) {
-      console.error("Home Load Error:", error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load profile';
+      logger.error("Home Load Error:", err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculateRecommendations]);
 
-  // --- UPDATED RECOMMENDATION LOGIC ---
-  const calculateRecommendations = (currentScores: Record<string, number>) => {
-    if (!currentScores || Object.keys(currentScores).length === 0) return;
-
-    // 1. Sort Categories by Score (High to Low)
-    const sortedCategories = Object.entries(currentScores)
-      .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)
-      .map(([category]) => category);
-
-    const primaryCat = sortedCategories[0];   // Highest Score (e.g. Depression)
-    const secondaryCat = sortedCategories[1]; // Second Highest (e.g. Anxiety)
-
-    // Helper to handle "Autism Spectrum" vs "Autism"
-    const normalize = (key: string) => (key?.includes("Autism") ? "Autism" : key);
-
-    // 2. Get Games List
-    const primaryGames = PROFILE_MAP[normalize(primaryCat)] || PROFILE_MAP["General"];
-    const secondaryGames = PROFILE_MAP[normalize(secondaryCat)] || PROFILE_MAP["General"];
-
-    // 3. Mix Them: 2 from Primary + 1 from Secondary
-    const finalMix = [
-      primaryGames[0], // Top Game for #1 Issue
-      primaryGames[1], // Backup Game for #1 Issue
-      secondaryGames[0] // Top Game for #2 Issue (The Comorbidity Fix)
-    ].filter(Boolean); // Remove undefined if lists are short
-
-    // Remove duplicates (in case Primary & Secondary are the same category)
-    const uniqueMix = [...new Set(finalMix)];
-
-    setRecommendations(uniqueMix);
-  };
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full animate-pulse-slow mx-auto mb-4"></div>
         <p className="text-gray-400 animate-fade-in">Preparing your personalized space...</p>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="card-calm text-center max-w-md">
+        <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Brain className="text-red-400" size={24} />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Unable to load profile</h2>
+        <p className="text-gray-300 mb-4">{error}</p>
+        <button onClick={loadProfile} className="btn-calm">
+          Try Again
+        </button>
       </div>
     </div>
   );
@@ -165,7 +199,6 @@ export default function Home() {
                   </div>
                   <p className="text-gray-400 mb-4">Your profile is waiting to be discovered</p>
                   <Link to="/questionnaire" className="btn-calm inline-flex items-center gap-2">
-                    <Sunrise size={16} />
                     Complete Assessment
                   </Link>
                 </div>

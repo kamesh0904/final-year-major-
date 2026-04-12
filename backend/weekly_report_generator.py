@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 import os
 from database import supabase
 from auth import get_current_user
+from agents.therapy_team import MultiAgentTherapyTeam
 
 router = APIRouter()
 
@@ -59,8 +60,14 @@ class ClinicalSynthesisGenerator:
         # Collect all data sources
         raw_data = await self._collect_data_sources(user_id, report_type)
         
-        # Generate the clinical synthesis
-        synthesis = await self._generate_synthesis(raw_data, checkin_data, report_type)
+        # MULTI-AGENT SYSTEM UPGRADE (V3)
+        # Generate the clinical synthesis using the specialized AI therapy team
+        therapy_team = MultiAgentTherapyTeam()
+        try:
+            synthesis = await therapy_team.analyze_with_team(raw_data, checkin_data, report_type)
+        except Exception as e:
+            print(f"Multi-Agent Therapy Team encountered an error: {e}. Falling back to standard synthesis.")
+            synthesis = await self._generate_synthesis(raw_data, checkin_data, report_type)
         
         return {
             "synthesis": synthesis,

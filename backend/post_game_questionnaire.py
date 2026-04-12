@@ -5,25 +5,52 @@ Updated to support cumulative session tracking and question history
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, validator, constr
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date
 import json
-from database import supabase
+import logging
+from database_connection import get_db_connection
 from auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 class SessionTimeRequest(BaseModel):
-    game_name: str
+    game_name: constr(min_length=1, max_length=100)
     session_duration: int  # in seconds
+    
+    @validator('session_duration')
+    def validate_duration(cls, v):
+        if v < 0 or v > 86400:  # Max 24 hours
+            raise ValueError('Session duration must be between 0 and 86400 seconds')
+        return v
 
 class QuestionnaireResponse(BaseModel):
-    game_name: str
+    game_name: constr(min_length=1, max_length=100)
     session_duration: int  # in seconds
-    profile_category: str
+    profile_category: constr(min_length=1, max_length=50)
     questions: List[str]
     responses: List[bool]
+    
+    @validator('session_duration')
+    def validate_duration(cls, v):
+        if v < 0 or v > 86400:
+            raise ValueError('Session duration must be between 0 and 86400 seconds')
+        return v
+    
+    @validator('questions')
+    def validate_questions(cls, v):
+        if len(v) == 0 or len(v) > 10:
+            raise ValueError('Questions must contain 1-10 items')
+        return v
+    
+    @validator('responses')
+    def validate_responses(cls, v, values):
+        if 'questions' in values and len(v) != len(values['questions']):
+            raise ValueError('Responses must match questions length')
+        return v
 
 class SessionCheckResponse(BaseModel):
     should_trigger_questionnaire: bool
@@ -43,6 +70,8 @@ async def add_session_time(
     user_id: str = Depends(get_current_user)
 ):
     """Add session time and check if questionnaire should be triggered"""
+    conn = None
+    cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -53,7 +82,11 @@ async def add_session_time(
         """, (user_id,))
         
         profile = cursor.fetchone()
-        if not profile or not profile[0]:
+        if not profile:
+            logger.warning(f"Profile not found for user {user_id}")
+            category = "ADHD"  # Default fallback
+            scores = {}
+        elif not profile[0]:
             category = "ADHD"  # Default fallback
             scores = {}
         else:
@@ -66,10 +99,10 @@ async def add_session_time(
         """, (user_id, category, request.session_duration))
         
         result = cursor.fetchone()
-        should_trigger, total_duration, available_count = result
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to add session time")
         
-        cursor.close()
-        conn.close()
+        should_trigger, total_duration, available_count = result
         
         return SessionCheckResponse(
             should_trigger_questionnaire=should_trigger,
@@ -78,8 +111,16 @@ async def add_session_time(
             category=category
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error adding session time: {str(e)}")
+        logger.error(f"Error adding session time for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error adding session time")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 @router.post("/get-unused-questions")
 async def get_unused_questions(

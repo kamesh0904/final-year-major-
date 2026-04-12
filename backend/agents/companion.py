@@ -53,7 +53,7 @@ class CompanionAgent:
 
 What you're feeling is real and valid, but ending your life isn't the answer. Your life has meaning and value, even when it doesn't feel that way.
 
-Please, please call 988 right now - they have people who understand exactly what you're going through. Or if you're in immediate danger, call 911. You don't have to face this alone."""
+Please, please call AASRA right now at 9820466726 - they have trained counselors who understand exactly what you're going through. Or you can call Vandrevala Foundation at 1860 2662 345. If you're in immediate danger, call 112. You don't have to face this alone."""
 
                 # Return severe crisis response but let it be more natural
                 return crisis_detector.get_crisis_response(crisis_analysis['severity'], user_context)
@@ -61,7 +61,7 @@ Please, please call 988 right now - they have people who understand exactly what
         # 2. Define the Persona based on Profile
         persona_instructions = self._get_persona(profile)
 
-        # 3. Get diary entries if user_id is provided
+        # 3. Get diary entries if user_id is provided - ENHANCED FOR BETTER CONTEXT
         diary_status = "The user has not logged in or no diary access enabled."
         diary_content = ""
         
@@ -74,10 +74,10 @@ Please, please call 988 right now - they have people who understand exactly what
 
                 if supabase:
                     response = supabase.table("diary_entries") \
-                        .select("title, content, mood_rating") \
+                        .select("title, content, mood_rating, created_at") \
                         .eq("user_id", user_id) \
                         .order("created_at", desc=True) \
-                        .limit(3) \
+                        .limit(5) \
                         .execute()
                     
                     entries = response.data
@@ -85,10 +85,17 @@ Please, please call 988 right now - they have people who understand exactly what
                     
                     if entries:
                         diary_status = "You have access to the user's recent diary entries."
-                        diary_content = f"\n\nRECENT DIARY ENTRIES (Securely Accessed):\n"
+                        
+                        # Calculate mood trend
+                        moods = [e['mood_rating'] for e in entries if e.get('mood_rating')]
+                        avg_mood = sum(moods) / len(moods) if moods else 0
+                        
+                        diary_content = f"\n\nRECENT DIARY ENTRIES (Last 5, Securely Accessed):\n"
                         for entry in entries:
-                            diary_content += f"- {entry['title']}: {entry['content'][:150]}... (Mood: {entry['mood_rating']}/10)\n"
-                        diary_content += "\nUse this personal context to provide more empathetic and personalized responses. References to specific diary details show you care."
+                            diary_content += f"- '{entry['title']}': {entry['content'][:200]}... (Mood: {entry['mood_rating']}/10)\n"
+                        
+                        diary_content += f"\n**MOOD TREND**: Average mood: {avg_mood:.1f}/10 over recent entries.\n"
+                        diary_content += "\n**IMPORTANT**: Actively reference these diary entries naturally in your responses. Mention specific things they wrote about to show you're paying attention. Example: 'I noticed in your diary you mentioned struggling with...' This creates real connection and trust.\n"
                     else:
                         diary_status = "You have access to the diary, but the user has not written any entries yet."
                 else:
@@ -108,7 +115,7 @@ Please, please call 988 right now - they have people who understand exactly what
         They mentioned: {', '.join(crisis_analysis['keywords_found'][:3])}
         
         Respond with genuine concern but in your natural, therapeutic style. Don't be robotic or clinical.
-        Validate their pain, offer hope, and naturally mention crisis resources like 988 if appropriate.
+        Validate their pain, offer hope, and naturally mention crisis resources (AASRA: 9820466726, Vandrevala: 1860 2662 345) if appropriate.
         Be more attentive and caring than usual, but still sound like yourself.
         """
         
@@ -197,18 +204,9 @@ Please, please call 988 right now - they have people who understand exactly what
             # 8. Post-process response for natural, varied language
             response_text = response.content
             
-            # Add crisis resources naturally if response addresses mental health struggles
-            crisis_keywords = ['difficult', 'struggling', 'hard time', 'overwhelming', 'tough', 'heavy']
-            if any(word in response_text.lower() for word in crisis_keywords):
-                if 'suicide' not in response_text.lower() and '988' not in response_text:
-                    # Add resources naturally, not as a robotic afterthought
-                    natural_additions = [
-                        "\n\nBy the way, if things ever feel too heavy to handle alone, 988 is there 24/7.",
-                        "\n\nJust so you know, if you ever need someone who specializes in this stuff, 988 has really good people.",
-                        "\n\nOh, and remember - if you ever need more support than I can give, 988 is always available."
-                    ]
-                    import random
-                    response_text += random.choice(natural_additions)
+            # Only add crisis resources if AI naturally mentioned crisis/suicide topics
+            # Don't auto-append for normal therapy conversations about difficulty
+            # The AI is smart enough to mention helplines when truly needed
 
             return response_text
 

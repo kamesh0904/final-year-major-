@@ -6,9 +6,11 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
+    Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { BG_GRADIENT, ORB } from '../config/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,28 +48,20 @@ const GAMES = [
         tag: "Cognitive Flex"
     },
     {
-        id: "lumina",
-        title: "Lumina",
-        desc: "Restore light to the world, one step at a time.",
-        icon: "sunny",
-        colors: ['#F59E0B', '#F97316'],
-        tag: "Depression Uplift"
-    },
-    {
-        id: "neon-rise",
-        title: "Neon Rise",
-        desc: "Build motivation through small wins.",
-        icon: "trending-up",
-        colors: ['#6366F1', '#8B5CF6'],
-        tag: "Activation"
-    },
-    {
-        id: "cosmic-flow",
-        title: "Cosmic Flow",
+        id: "calm-path",
+        title: "Calm Path",
         desc: "Find your center in a chaotic world.",
-        icon: "pulse",
+        icon: "leaf",
         colors: ['#3B82F6', '#6366F1'],
         tag: "Flow State"
+    },
+    {
+        id: "breath-sync",
+        title: "Breath Sync",
+        desc: "Regulate anxiety with visual breathing.",
+        icon: "pulse",
+        colors: ['#06B6D4', '#0891B2'],
+        tag: "Anxiety Relief"
     },
     {
         id: "emotion-match",
@@ -84,20 +78,51 @@ const GAMES = [
         icon: "water",
         colors: ['#14B8A6', '#06B6D4'],
         tag: "Sensory Rest"
+    },
+    {
+        id: "light-builder",
+        title: "Light Builder",
+        desc: "Restore light to the world, one step at a time.",
+        icon: "sunny",
+        colors: ['#F59E0B', '#F97316'],
+        tag: "Depression Uplift"
+    },
+    {
+        id: "momentum-steps",
+        title: "Momentum Steps",
+        desc: "Build motivation through small wins.",
+        icon: "trending-up",
+        colors: ['#6366F1', '#8B5CF6'],
+        tag: "Activation"
     }
 ];
 
 export default function GamesScreen({ navigation }: any) {
     const handleGamePress = (gameId: string) => {
-        // Navigate to specific game or show game details
-        console.log('Game pressed:', gameId);
+        const routes: Record<string, string> = {
+            'chromatic-rush': 'ChromaticRush',
+            'impulse-guard': 'ImpulseGuard',
+            'pattern-release': 'PatternRelease',
+            'order-shift': 'OrderShift',
+            'light-builder': 'LightBuilder',
+            'momentum-steps': 'MomentumSteps',
+            'calm-path': 'CalmPath',
+            'breath-sync': 'BreathSync',
+            'emotion-match': 'EmotionMatch',
+            'sensory-flow': 'SensoryFlow',
+        };
+        const route = routes[gameId];
+        if (route) {
+            navigation.navigate(route as never);
+        }
     };
+
 
     return (
         <View style={styles.container}>
             {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                colors={BG_GRADIENT}
                 style={styles.backgroundGradient}
             />
 
@@ -106,6 +131,15 @@ export default function GamesScreen({ navigation }: any) {
             <View style={[styles.floatingElement, styles.floatingElement2]} />
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                {/* Logo */}
+                <View style={styles.logoContainer}>
+                    <Image
+                        source={require('../../assets/logo.png')}
+                        style={styles.logo}
+                        resizeMode="contain"
+                    />
+                </View>
+
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.title}>Neuro Library</Text>
@@ -124,7 +158,7 @@ export default function GamesScreen({ navigation }: any) {
                             onPress={() => handleGamePress(game.id)}
                         >
                             <LinearGradient
-                                colors={[...game.colors, 'rgba(0,0,0,0.1)']}
+                                colors={[game.colors[0], game.colors[1], 'rgba(0,0,0,0.1)'] as const}
                                 style={styles.cardGradient}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
@@ -201,6 +235,14 @@ const styles = StyleSheet.create({
         paddingTop: 60,
         paddingHorizontal: 24,
         paddingBottom: 100,
+    },
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    logo: {
+        width: 80,
+        height: 80,
     },
     header: {
         alignItems: 'center',

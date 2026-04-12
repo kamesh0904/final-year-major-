@@ -1,9 +1,22 @@
 // src/api/neuroNestApi.ts
 
 import { supabase } from "../lib/supabase";
+import { logger } from "../utils/logger";
 
 // Use environment variable or fallback to same-origin (proxy mode)
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
+// --- Error Types ---
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number,
+    public response?: unknown
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 // --- Interfaces ---
 export interface QuestionnaireResponse {
@@ -17,21 +30,65 @@ export interface ChatResponse {
   response: string;
 }
 
+// --- Helper Functions ---
+async function handleApiResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new ApiError(
+      `API request failed: ${response.statusText}`,
+      response.status,
+      errorText
+    );
+  }
+
+  try {
+    const data = await response.json();
+    return data as T;
+  } catch (error) {
+    throw new ApiError('Failed to parse API response');
+  }
+}
+
+async function fetchWithRetry<T>(
+  url: string,
+  options: RequestInit,
+  retries = 2
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      return await handleApiResponse<T>(response);
+    } catch (error) {
+      lastError = error as Error;
+      logger.warn(`API request failed (attempt ${i + 1}/${retries + 1})`, error);
+
+      if (i < retries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  }
+
+  throw lastError || new ApiError('Request failed after retries');
+}
+
 // --- 1. Questionnaire ---
 export async function submitQuestionnaire(
   answers: Record<number, number>
 ): Promise<QuestionnaireResponse> {
-  const res = await fetch(`${API_BASE}/submit-questionnaire`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ answers }),
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to submit questionnaire");
+  if (!answers || Object.keys(answers).length === 0) {
+    throw new ApiError('Invalid questionnaire answers');
   }
 
-  return res.json();
+  return fetchWithRetry<QuestionnaireResponse>(
+    `${API_BASE}/submit-questionnaire`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers }),
+    }
+  );
 }
 
 // --- 2. Chat (This was missing!) ---
@@ -39,21 +96,25 @@ export async function sendChatMessage(
   message: string,
   history: { role: string; content: string }[],
   profile: string,
-  gameStats: string | object
+  gameStats: string | Record<string, unknown>
 ): Promise<ChatResponse> {
-  const res = await fetch(`${API_BASE}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message,
-      history,
-      profile,
-      game_stats: gameStats
-    }),
-  });
+  if (!message?.trim()) {
+    throw new ApiError('Message cannot be empty');
+  }
 
-  if (!res.ok) throw new Error("Chat request failed");
-  return res.json();
+  return fetchWithRetry<ChatResponse>(
+    `${API_BASE}/chat`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history: history || [],
+        profile: profile || 'General',
+        game_stats: gameStats
+      }),
+    }
+  );
 }
 
 // --- 3. Game Session (This was missing!) ---
@@ -65,23 +126,32 @@ export async function submitGameSession(data: {
   high_score?: number;
   mistakes?: number;
   difficulty_level?: number;
-  feedback?: any;
-}) {
-  const res = await fetch(`${API_BASE}/submit-game-session`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  feedback?: unknown;
+}): Promise<{ success: boolean; message: string }> {
+  if (!data.user_id || !data.game_name) {
+    throw new ApiError('Missing required game session data');
+  }
 
-  if (!res.ok) throw new Error("Failed to save game session");
-  return res.json();
+  return fetchWithRetry<{ success: boolean; message: string }>(
+    `${API_BASE}/submit-game-session`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }
+  );
 }
 
 export async function getPersonalBest(gameName: string): Promise<number> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return 0;
+  if (!gameName) {
+    logger.warn('getPersonalBest called without game name');
+    return 0;
+  }
 
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
     const { data, error } = await supabase
       .from('game_sessions')
       .select('score')
@@ -91,14 +161,14 @@ export async function getPersonalBest(gameName: string): Promise<number> {
       .limit(1)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error("Error fetching personal best:", error);
+    if (error && error.code !== 'PGRST116') {
+      logger.error("Error fetching personal best:", error);
       return 0;
     }
 
     return data?.score || 0;
   } catch (err) {
-    console.error("Error in getPersonalBest:", err);
+    logger.error("Error in getPersonalBest:", err);
     return 0;
   }
 }
@@ -108,14 +178,18 @@ export async function updateContactInfo(data: {
   address: string;
   emergency_phone: string;
 }): Promise<{ status: string; message: string }> {
-  const res = await fetch(`${API_BASE}/update-contact-info`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  if (!data.address?.trim() || !data.emergency_phone?.trim()) {
+    throw new ApiError('Address and emergency phone are required');
+  }
 
-  if (!res.ok) throw new Error("Failed to update contact information");
-  return res.json();
+  return fetchWithRetry<{ status: string; message: string }>(
+    `${API_BASE}/update-contact-info`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }
+  );
 }
 
 // --- 5. Post-Game Questionnaire ---

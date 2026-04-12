@@ -5,6 +5,8 @@ Monitors conversations for suicide ideation and triggers emergency protocols
 
 import re
 import time
+import os
+import joblib
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import requests
@@ -12,6 +14,16 @@ from database import supabase
 
 class CrisisDetector:
     def __init__(self):
+        # Load custom ML model
+        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ml", "crisis_model.pkl")
+        self.ml_model = None
+        try:
+            if os.path.exists(model_path):
+                self.ml_model = joblib.load(model_path)
+                print("✅ Crisis ML model loaded successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to load crisis ML model: {e}")
+            
         # Suicide ideation keywords and phrases
         self.crisis_keywords = [
             # Direct expressions
@@ -51,14 +63,38 @@ class CrisisDetector:
             'is_crisis': bool,
             'severity': int (1-5),
             'keywords_found': list,
-            'should_alert': bool
+            'should_alert': bool,
+            'ml_prediction': str,
+            'ml_confidence': float
         }
         """
         message_lower = message.lower()
         keywords_found = []
         severity = 0
+        ml_prediction = "Unknown"
+        ml_confidence = 0.0
         
-        # Check for direct keyword matches
+        # 1. Use Custom ML Model for prediction if available
+        if self.ml_model:
+            try:
+                pred = self.ml_model.predict([message])[0]
+                proba = self.ml_model.predict_proba([message])[0]
+                ml_confidence = float(max(proba))
+                
+                if pred == 0:
+                    ml_prediction = "Safe"
+                elif pred == 1:
+                    ml_prediction = "Mild Distress"
+                    severity += 2
+                    keywords_found.append("ml_detection: mild_distress")
+                elif pred == 2:
+                    ml_prediction = "Crisis"
+                    severity += 4
+                    keywords_found.append("ml_detection: crisis")
+            except Exception as e:
+                print(f"ML prediction error: {e}")
+        
+        # 2. Check for direct keyword matches as fallback/ensemble
         for keyword in self.crisis_keywords:
             if keyword in message_lower:
                 keywords_found.append(keyword)
@@ -87,6 +123,8 @@ class CrisisDetector:
             'severity': min(severity, 5),
             'keywords_found': keywords_found,
             'should_alert': should_alert,
+            'ml_prediction': ml_prediction,
+            'ml_confidence': ml_confidence,
             'timestamp': datetime.now().isoformat()
         }
 

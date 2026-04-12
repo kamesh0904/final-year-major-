@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { BG_GRADIENT, GRADIENT_PRIMARY, COLOR } from '../config/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,7 +22,14 @@ export default function LoginScreen({ navigation }: any) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const { signIn } = useAuth();
+    const { signIn, signInWithGoogle, session } = useAuth();
+
+    // Navigate to Main once session is available after Google sign-in
+    React.useEffect(() => {
+        if (session) {
+            navigation.replace('Main');
+        }
+    }, [session]);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -40,114 +48,143 @@ export default function LoginScreen({ navigation }: any) {
         }
     };
 
+    const handleGoogleLogin = async () => {
+        setLoading(true);
+        try {
+            await signInWithGoogle();
+            // Navigation happens automatically via the session useEffect above
+        } catch (error: any) {
+            Alert.alert('Google Login Failed', error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                colors={BG_GRADIENT}
                 style={styles.backgroundGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-            >
-                {/* Back Button */}
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => navigation.goBack()}
-                >
-                    <Ionicons name="arrow-back" size={24} color="white" />
-                </TouchableOpacity>
             />
 
-                {/* Floating Background Elements */}
-                <View style={[styles.floatingElement, styles.floatingElement1]} />
-                <View style={[styles.floatingElement, styles.floatingElement2]} />
+            {/* Back Button */}
+            <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+            >
+                <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
 
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.keyboardView}
-                >
-                    <ScrollView contentContainerStyle={styles.scrollContent}>
-                        <View style={styles.content}>
-                            {/* Header */}
-                            <View style={styles.header}>
-                                <Text style={styles.title}>Welcome Back</Text>
-                                <Text style={styles.subtitle}>Continue your journey of growth and discovery</Text>
-                            </View>
+            {/* Floating Background Elements */}
+            <View style={[styles.floatingElement, styles.floatingElement1]} />
+            <View style={[styles.floatingElement, styles.floatingElement2]} />
 
-                            {/* Card Container */}
-                            <View style={styles.card}>
-                                <View style={styles.form}>
-                                    {/* Email Input */}
-                                    <View style={styles.inputContainer}>
-                                        <Text style={styles.label}>Email Address</Text>
-                                        <View style={styles.inputWrapper}>
-                                            <TextInput
-                                                style={styles.input}
-                                                placeholder="Enter your email"
-                                                placeholderTextColor="rgba(156, 163, 175, 0.7)"
-                                                value={email}
-                                                onChangeText={setEmail}
-                                                autoCapitalize="none"
-                                                keyboardType="email-address"
-                                            />
-                                        </View>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.keyboardView}
+            >
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.content}>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <Text style={styles.title}>Welcome Back</Text>
+                            <Text style={styles.subtitle}>Continue your journey of growth and discovery</Text>
+                        </View>
+
+                        {/* Card Container */}
+                        <View style={styles.card}>
+                            <View style={styles.form}>
+                                {/* Email Input */}
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Email Address</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Enter your email"
+                                            placeholderTextColor="rgba(156, 163, 175, 0.7)"
+                                            value={email}
+                                            onChangeText={setEmail}
+                                            autoCapitalize="none"
+                                            keyboardType="email-address"
+                                        />
                                     </View>
+                                </View>
 
-                                    {/* Password Input */}
-                                    <View style={styles.inputContainer}>
-                                        <Text style={styles.label}>Password</Text>
-                                        <View style={styles.inputWrapper}>
-                                            <TextInput
-                                                style={styles.input}
-                                                placeholder="Enter your password"
-                                                placeholderTextColor="rgba(156, 163, 175, 0.7)"
-                                                value={password}
-                                                onChangeText={setPassword}
-                                                secureTextEntry
-                                            />
-                                        </View>
+                                {/* Password Input */}
+                                <View style={styles.inputContainer}>
+                                    <Text style={styles.label}>Password</Text>
+                                    <View style={styles.inputWrapper}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Enter your password"
+                                            placeholderTextColor="rgba(156, 163, 175, 0.7)"
+                                            value={password}
+                                            onChangeText={setPassword}
+                                            secureTextEntry
+                                        />
                                     </View>
+                                </View>
 
-                                    {/* Login Button */}
-                                    <TouchableOpacity
-                                        style={[styles.loginButton, loading && styles.buttonDisabled]}
-                                        onPress={handleLogin}
-                                        disabled={loading}
+                                {/* Login Button */}
+                                <TouchableOpacity
+                                    style={[styles.loginButton, loading && styles.buttonDisabled]}
+                                    onPress={handleLogin}
+                                    disabled={loading}
+                                >
+                                    <LinearGradient
+                                        colors={GRADIENT_PRIMARY}
+                                        style={styles.buttonGradient}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
                                     >
-                                        <LinearGradient
-                                            colors={['rgba(99, 102, 241, 0.8)', 'rgba(139, 92, 246, 0.8)']}
-                                            style={styles.buttonGradient}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                        >
-                                            {loading ? (
-                                                <View style={styles.loadingContainer}>
-                                                    <Ionicons name="refresh" size={20} color="white" style={styles.loadingIcon} />
-                                                    <Text style={styles.buttonText}>Logging In...</Text>
-                                                </View>
-                                            ) : (
-                                                <Text style={styles.buttonText}>Login</Text>
-                                            )}
-                                        </LinearGradient>
-                                    </TouchableOpacity>
+                                        {loading ? (
+                                            <View style={styles.loadingContainer}>
+                                                <Ionicons name="refresh" size={20} color="white" style={styles.loadingIcon} />
+                                                <Text style={styles.buttonText}>Logging In...</Text>
+                                            </View>
+                                        ) : (
+                                            <Text style={styles.buttonText}>Login</Text>
+                                        )}
+                                    </LinearGradient>
+                                </TouchableOpacity>
 
-                                    {/* Sign Up Link */}
-                                    <View style={styles.linkContainer}>
-                                        <Text style={styles.linkText}>
-                                            Don't have an account?{' '}
-                                            <Text
-                                                style={styles.linkHighlight}
-                                                onPress={() => navigation.navigate('Signup')}
-                                            >
-                                                Sign Up Free
-                                            </Text>
+                                {/* Divider */}
+                                <View style={styles.dividerContainer}>
+                                    <View style={styles.dividerLine} />
+                                    <Text style={styles.dividerText}>OR</Text>
+                                    <View style={styles.dividerLine} />
+                                </View>
+
+                                {/* Google Login Button */}
+                                <TouchableOpacity
+                                    style={[styles.googleButton, loading && styles.buttonDisabled]}
+                                    onPress={handleGoogleLogin}
+                                    disabled={loading}
+                                >
+                                    <Ionicons name="logo-google" size={22} color="#1F2937" />
+                                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                                </TouchableOpacity>
+
+                                {/* Sign Up Link */}
+                                <View style={styles.linkContainer}>
+                                    <Text style={styles.linkText}>
+                                        Don't have an account?{' '}
+                                        <Text
+                                            style={styles.linkHighlight}
+                                            onPress={() => navigation.navigate('Signup')}
+                                        >
+                                            Sign Up Free
                                         </Text>
-                                    </View>
+                                    </Text>
                                 </View>
                             </View>
                         </View>
-                    </ScrollView>
-                </KeyboardAvoidingView>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }
@@ -286,6 +323,35 @@ const styles = StyleSheet.create({
     buttonText: {
         color: 'white',
         fontSize: 18,
+        fontWeight: '600',
+    },
+    dividerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 20,
+    },
+    dividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    dividerText: {
+        color: 'rgba(156, 163, 175, 1)',
+        paddingHorizontal: 16,
+        fontSize: 14,
+    },
+    googleButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'white',
+        paddingVertical: 14,
+        borderRadius: 16,
+        gap: 12,
+    },
+    googleButtonText: {
+        color: '#1F2937',
+        fontSize: 16,
         fontWeight: '600',
     },
     linkContainer: {

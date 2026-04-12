@@ -7,11 +7,15 @@ import {
     TouchableOpacity,
     RefreshControl,
     Dimensions,
+    Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { BG_GRADIENT, GRADIENT_PRIMARY, PROGRESS_GRADIENT, COLOR, ORB } from '../config/theme';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../config/api';
+import { supabase } from '../config/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import MoodCheckInModal from './MoodCheckInModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,6 +32,19 @@ const GAME_LIBRARY: Record<string, { desc: string; colors: string[]; icon: strin
     "Momentum Steps": { desc: "Build motivation through small wins.", colors: ['#6366F1', '#8B5CF6'], icon: 'trending-up' },
 };
 
+const GAME_ROUTES: Record<string, string> = {
+    "Chromatic Rush": 'ChromaticRush',
+    "Impulse Guard": 'ImpulseGuard',
+    "Pattern Release": 'PatternRelease',
+    "Order Shift": 'OrderShift',
+    "Sensory Flow": 'SensoryFlow',
+    "Emotion Match": 'EmotionMatch',
+    "Breath Sync": 'BreathSync',
+    "Calm Path": 'CalmPath',
+    "Light Builder": 'LightBuilder',
+    "Momentum Steps": 'MomentumSteps',
+};
+
 const PROFILE_MAP: Record<string, string[]> = {
     "ADHD": ["Chromatic Rush", "Impulse Guard"],
     "OCD": ["Pattern Release", "Order Shift"],
@@ -40,37 +57,67 @@ const PROFILE_MAP: Record<string, string[]> = {
 export default function HomeScreen({ navigation }: any) {
     const { user } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
-    const [gentleGoal, setGentleGoal] = useState<any>(null);
-    const [streak, setStreak] = useState(0);
     const [scores, setScores] = useState<Record<string, number>>({});
     const [recommendations, setRecommendations] = useState<string[]>(PROFILE_MAP["General"]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    // Dashboard stats
+    const [streak, setStreak]           = useState(0);
+    const [todayMood, setTodayMood]     = useState<number | null>(null);
+    const [questsDone, setQuestsDone]   = useState(0);
+    const [gamesToday, setGamesToday]   = useState(0);
 
     const username = user?.email?.split('@')[0] || 'Traveler';
+    const TODAY = new Date().toISOString().slice(0, 10);
 
     useEffect(() => {
         loadData();
+        loadDashboardStats();
     }, []);
 
     const loadData = async () => {
         try {
-            const [goalRes, streakRes] = await Promise.all([
-                api.get('/gentle-goal/today').catch(() => ({ data: null })),
-                api.get('/gentle-goal/streak').catch(() => ({ data: { streak: 0 } })),
-            ]);
-            setGentleGoal(goalRes.data);
-            setStreak(streakRes.data.streak || 0);
-
-            // Load scores from local storage or API
-            const localScores = JSON.parse(localStorage?.getItem?.("userScores") || "{}");
-            if (Object.keys(localScores).length > 0) {
-                setScores(localScores);
-                calculateRecommendations(localScores);
-            }
+            setScores({});
         } catch (error) {
             console.error('Error loading data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadDashboardStats = async () => {
+        // Login streak
+        let streakCount = 0;
+        for (let i = 0; i < 60; i++) {
+            const d = new Date(); d.setDate(d.getDate() - i);
+            const key = `lumina_login_${d.toISOString().slice(0,10)}`;
+            const v = await AsyncStorage.getItem(key);
+            if (v) streakCount++; else break;
+        }
+        setStreak(streakCount);
+
+        // Today's mood
+        const moodRaw = await AsyncStorage.getItem(`mood_checkin_${TODAY}`);
+        if (moodRaw) setTodayMood(parseInt(moodRaw, 10));
+
+        // Quests done today
+        let done = 0;
+        const questIds = ['daily_login', 'play_profile_game', 'breath_sync', 'companion_chat', 'personal_tasks'];
+        // Simple: count how many AsyncStorage quest flags are set
+        const loginDone = await AsyncStorage.getItem(`lumina_login_${TODAY}`);
+        if (loginDone) done++;
+        if (moodRaw) done++; // mood = companion_chat proxy
+        setQuestsDone(done);
+
+        // Games played today
+        if (user?.id) {
+            try {
+                const { count } = await supabase
+                    .from('game_sessions')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('user_id', user.id)
+                    .gte('created_at', `${TODAY}T00:00:00`);
+                setGamesToday(count ?? 0);
+            } catch (_) {}
         }
     };
 
@@ -102,6 +149,7 @@ export default function HomeScreen({ navigation }: any) {
     const onRefresh = async () => {
         setRefreshing(true);
         await loadData();
+        await loadDashboardStats();
         setRefreshing(false);
     };
 
@@ -109,7 +157,7 @@ export default function HomeScreen({ navigation }: any) {
         return (
             <View style={styles.loadingContainer}>
                 <LinearGradient
-                    colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                    colors={BG_GRADIENT}
                     style={styles.backgroundGradient}
                 />
                 <View style={styles.loadingContent}>
@@ -122,13 +170,11 @@ export default function HomeScreen({ navigation }: any) {
 
     return (
         <View style={styles.container}>
-            {/* Background Gradient */}
-            <LinearGradient
-                colors={['#0a0514', '#1a0b2e', '#0f0619']}
-                style={styles.backgroundGradient}
-            />
+            {/* Daily mood check-in modal */}
+            <MoodCheckInModal onComplete={(mood) => setTodayMood(mood)} />
 
-            {/* Floating Background Elements */}
+            {/* Background Gradient */}
+            <LinearGradient colors={BG_GRADIENT} style={styles.backgroundGradient} />
             <View style={[styles.floatingElement, styles.floatingElement1]} />
             <View style={[styles.floatingElement, styles.floatingElement2]} />
 
@@ -136,29 +182,84 @@ export default function HomeScreen({ navigation }: any) {
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#A855F7" />
                 }
             >
-                {/* Welcome Header */}
+                {/* Logo */}
+                <View style={styles.logoContainer}>
+                    <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+                </View>
+
+                {/* Welcome */}
                 <View style={styles.header}>
                     <View style={styles.statusIndicator}>
                         <View style={styles.statusDot} />
                         <Text style={styles.statusText}>You're in your safe space</Text>
                     </View>
                     <Text style={styles.welcomeTitle}>
-                        Welcome back,{' '}
-                        <Text style={styles.usernameGradient}>{username}</Text>
+                        Welcome back, <Text style={styles.usernameGradient}>{username}</Text>
                     </Text>
                     <Text style={styles.welcomeSubtitle}>
                         Take a deep breath. You're here, you're safe, and you're ready to grow.
                     </Text>
                 </View>
 
+                {/* ── Dashboard Stats Row ───────────────────────────────── */}
+                <View style={styles.statsRow}>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statEmoji}>🔥</Text>
+                        <Text style={styles.statValue}>{streak}</Text>
+                        <Text style={styles.statLabel}>Day Streak</Text>
+                    </View>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statEmoji}>
+                            {todayMood ? ['','😞','😔','😐','🙂','😊','😄','😁','🤩','🥳','✨'][todayMood] : '—'}
+                        </Text>
+                        <Text style={styles.statValue}>{todayMood ? `${todayMood}/10` : '—'}</Text>
+                        <Text style={styles.statLabel}>Today's Mood</Text>
+                    </View>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statEmoji}>🎮</Text>
+                        <Text style={styles.statValue}>{gamesToday}</Text>
+                        <Text style={styles.statLabel}>Games Today</Text>
+                    </View>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statEmoji}>⭐</Text>
+                        <Text style={styles.statValue}>{questsDone}/5</Text>
+                        <Text style={styles.statLabel}>Quests Done</Text>
+                    </View>
+                </View>
+
+                {/* ── Feature Shortcuts ─────────────────────────────────── */}
+                <View style={styles.shortcutsRow}>
+                    <TouchableOpacity onPress={() => navigation.navigate('WeeklyReport')} style={styles.shortcutCard}>
+                        <LinearGradient colors={['rgba(139,92,246,0.25)','rgba(139,92,246,0.05)']} style={styles.shortcutGrad}>
+                            <Text style={styles.shortcutEmoji}>📊</Text>
+                            <Text style={styles.shortcutTitle}>AI Report</Text>
+                            <Text style={styles.shortcutDesc}>Weekly therapy insights</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Achievements')} style={styles.shortcutCard}>
+                        <LinearGradient colors={['rgba(245,158,11,0.25)','rgba(245,158,11,0.05)']} style={styles.shortcutGrad}>
+                            <Text style={styles.shortcutEmoji}>🏆</Text>
+                            <Text style={styles.shortcutTitle}>Achievements</Text>
+                            <Text style={styles.shortcutDesc}>Your earned badges</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('LightBuilder')} style={styles.shortcutCard}>
+                        <LinearGradient colors={['rgba(251,191,36,0.25)','rgba(251,191,36,0.05)']} style={styles.shortcutGrad}>
+                            <Text style={styles.shortcutEmoji}>✨</Text>
+                            <Text style={styles.shortcutTitle}>Light Builder</Text>
+                            <Text style={styles.shortcutDesc}>Daily quest city game</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Neuro Profile Section */}
                 <View style={styles.profileCard}>
                     <View style={styles.cardHeader}>
                         <View style={styles.iconContainer}>
-                            <Ionicons name="brain" size={20} color="#A855F7" />
+                            <Ionicons name={"brain" as any} size={20} color="#A855F7" />
                         </View>
                         <Text style={styles.cardTitle}>Your Neuro Profile</Text>
                     </View>
@@ -166,7 +267,7 @@ export default function HomeScreen({ navigation }: any) {
                     {Object.keys(scores).length === 0 ? (
                         <View style={styles.emptyProfile}>
                             <View style={styles.emptyIcon}>
-                                <Ionicons name="brain" size={24} color="#A855F7" />
+                                <Ionicons name={"brain" as any} size={24} color="#A855F7" />
                             </View>
                             <Text style={styles.emptyText}>Your profile is waiting to be discovered</Text>
                             <TouchableOpacity
@@ -174,10 +275,10 @@ export default function HomeScreen({ navigation }: any) {
                                 onPress={() => navigation.navigate('Questionnaire')}
                             >
                                 <LinearGradient
-                                    colors={['rgba(99, 102, 241, 0.8)', 'rgba(139, 92, 246, 0.8)']}
+                                    colors={GRADIENT_PRIMARY}
                                     style={styles.buttonGradient}
                                 >
-                                    <Ionicons name="sunrise" size={16} color="white" />
+                                    <Ionicons name={"sunny" as any} size={16} color="white" />
                                     <Text style={styles.buttonText}>Complete Assessment</Text>
                                 </LinearGradient>
                             </TouchableOpacity>
@@ -193,7 +294,9 @@ export default function HomeScreen({ navigation }: any) {
                                     </View>
                                     <View style={styles.progressBar}>
                                         <LinearGradient
-                                            colors={['#3B82F6', '#A855F7', '#EC4899']}
+                                            colors={PROGRESS_GRADIENT}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
                                             style={[styles.progressFill, { width: `${(score / 25) * 100}%` }]}
                                         />
                                     </View>
@@ -207,26 +310,24 @@ export default function HomeScreen({ navigation }: any) {
                 <View style={styles.goalCard}>
                     <View style={styles.cardHeader}>
                         <View style={styles.iconContainer}>
-                            <Ionicons name="flag" size={20} color="#A855F7" />
+                            <Ionicons name="flag" size={20} color="#FBBF24" />
                         </View>
                         <Text style={styles.cardTitle}>Today's Gentle Goal</Text>
                     </View>
-                    {gentleGoal ? (
-                        <View>
-                            <Text style={styles.goalText}>{gentleGoal.goal_text}</Text>
-                            <View style={styles.streakContainer}>
-                                <Ionicons name="flame" size={20} color="#F59E0B" />
-                                <Text style={styles.streakText}>{streak} day streak</Text>
-                            </View>
-                        </View>
-                    ) : (
-                        <Text style={styles.noGoalText}>Loading your goal...</Text>
-                    )}
+                    <Text style={styles.goalText}>
+                        Take 5 deep breaths when you feel overwhelmed today.
+                    </Text>
+                    <View style={styles.streakContainer}>
+                        <Ionicons name="flame" size={20} color="#F59E0B" />
+                        <Text style={styles.streakText}>0 day streak</Text>
+                    </View>
                 </View>
 
                 {/* Recommended Games */}
                 <View style={styles.gamesSection}>
-                    <Text style={styles.gamesTitle}>Chosen just for you</Text>
+                    <Text style={styles.gamesTitle}>
+                        <Text style={styles.gamesTitleGradient}>Chosen just for you</Text>
+                    </Text>
                     <View style={styles.gamesGrid}>
                         {recommendations.map((gameName, index) => {
                             const game = GAME_LIBRARY[gameName] || GAME_LIBRARY["Calm Path"];
@@ -234,20 +335,31 @@ export default function HomeScreen({ navigation }: any) {
                                 <TouchableOpacity
                                     key={gameName}
                                     style={styles.gameCard}
-                                    onPress={() => navigation.navigate('Games')}
+                                    onPress={() => {
+                                        const route = GAME_ROUTES[gameName];
+                                        if (route) {
+                                            navigation.navigate(route);
+                                        } else {
+                                            navigation.navigate('Games');
+                                        }
+                                    }}
                                 >
                                     <LinearGradient
-                                        colors={game.colors}
+                                        colors={[game.colors[0], game.colors[1], 'rgba(0,0,0,0.2)'] as const}
                                         style={styles.gameGradient}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 1 }}
                                     >
+                                        <View style={styles.gameOverlay} />
                                         <View style={styles.gameContent}>
                                             <View style={styles.gameIcon}>
-                                                <Ionicons name={game.icon as any} size={24} color="white" />
+                                                <Ionicons name={game.icon as any} size={28} color="white" />
                                             </View>
                                             <Text style={styles.gameName}>{gameName}</Text>
                                             <Text style={styles.gameDesc}>{game.desc}</Text>
+                                            <View style={styles.playIcon}>
+                                                <Ionicons name="play" size={16} color="white" />
+                                            </View>
                                         </View>
                                     </LinearGradient>
                                 </TouchableOpacity>
@@ -279,16 +391,18 @@ const styles = StyleSheet.create({
     floatingElement1: {
         width: 384,
         height: 384,
-        backgroundColor: '#8B5CF6',
-        top: height * 0.33,
-        right: width * 0.25,
+        backgroundColor: ORB.purple,
+        top: height * 0.2,
+        right: -100,
+        opacity: 1,
     },
     floatingElement2: {
         width: 320,
         height: 320,
-        backgroundColor: '#6366F1',
-        bottom: height * 0.33,
-        left: width * 0.25,
+        backgroundColor: ORB.indigo,
+        bottom: height * 0.25,
+        left: -80,
+        opacity: 1,
     },
     loadingContainer: {
         flex: 1,
@@ -306,7 +420,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     loadingText: {
-        color: 'rgba(156, 163, 175, 1)',
+        color: '#9CA3AF',
         fontSize: 16,
     },
     scrollView: {
@@ -317,13 +431,21 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingBottom: 100,
     },
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    logo: {
+        width: 80,
+        height: 80,
+    },
     header: {
         marginBottom: 32,
     },
     statusIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 12,
     },
     statusDot: {
         width: 8,
@@ -338,19 +460,57 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     welcomeTitle: {
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: 'bold',
         color: 'white',
         marginBottom: 12,
-        lineHeight: 36,
+        lineHeight: 40,
     },
     usernameGradient: {
-        color: '#A855F7',
+        color: '#F472B6',
+        textTransform: 'capitalize',
     },
     welcomeSubtitle: {
         fontSize: 16,
-        color: 'rgba(209, 213, 219, 1)',
+        color: '#D1D5DB',
         lineHeight: 24,
+    },
+    quickAccessGrid: {
+        flexDirection: 'row',
+        gap: 16,
+        marginBottom: 32,
+    },
+    quickCard: {
+        flex: 1,
+        height: 140,
+        borderRadius: 20,
+        overflow: 'hidden',
+    },
+    quickCardInner: {
+        flex: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 20,
+        padding: 20,
+        justifyContent: 'space-between',
+    },
+    quickCardIcon: {
+        width: 48,
+        height: 48,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    quickCardTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: 'white',
+    },
+    quickCardDesc: {
+        fontSize: 12,
+        color: '#9CA3AF',
     },
     profileCard: {
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -373,6 +533,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     cardTitle: {
         fontSize: 20,
@@ -381,7 +543,7 @@ const styles = StyleSheet.create({
     },
     emptyProfile: {
         alignItems: 'center',
-        paddingVertical: 48,
+        paddingVertical: 32,
     },
     emptyIcon: {
         width: 64,
@@ -391,20 +553,28 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     emptyText: {
-        color: 'rgba(156, 163, 175, 1)',
-        fontSize: 16,
+        color: '#9CA3AF',
+        fontSize: 14,
         marginBottom: 24,
+        textAlign: 'center',
     },
     assessmentButton: {
-        borderRadius: 16,
+        borderRadius: 12,
         overflow: 'hidden',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
     buttonGradient: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 14,
         paddingHorizontal: 24,
         gap: 8,
     },
@@ -427,15 +597,15 @@ const styles = StyleSheet.create({
     scoreDot: {
         width: 8,
         height: 8,
-        backgroundColor: '#3B82F6',
         borderRadius: 4,
+        marginRight: 8,
+        backgroundColor: '#3B82F6',
     },
     scoreDomain: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '500',
-        color: 'rgba(229, 231, 235, 1)',
-        marginLeft: 8,
+        color: '#E5E7EB',
     },
     scoreValue: {
         fontSize: 14,
@@ -457,15 +627,15 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderRadius: 24,
         padding: 24,
-        marginBottom: 24,
+        marginBottom: 32,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     goalText: {
         fontSize: 16,
-        color: 'rgba(75, 85, 99, 1)',
+        color: '#D1D5DB',
         lineHeight: 24,
-        marginBottom: 12,
+        marginBottom: 16,
     },
     streakContainer: {
         flexDirection: 'row',
@@ -477,48 +647,59 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginLeft: 8,
     },
-    noGoalText: {
-        fontSize: 14,
-        color: 'rgba(156, 163, 175, 1)',
-        fontStyle: 'italic',
-    },
     gamesSection: {
         marginBottom: 24,
     },
     gamesTitle: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
-        color: 'white',
         textAlign: 'center',
         marginBottom: 24,
     },
+    gamesTitleGradient: {
+        color: '#F472B6',
+    },
     gamesGrid: {
-        gap: 16,
+        gap: 20,
     },
     gameCard: {
-        height: 200,
+        height: 220,
         borderRadius: 24,
         overflow: 'hidden',
-        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 16,
+        elevation: 8,
     },
     gameGradient: {
         flex: 1,
-        justifyContent: 'flex-end',
+        position: 'relative',
+    },
+    gameOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.2)',
     },
     gameContent: {
+        flex: 1,
         padding: 24,
+        justifyContent: 'flex-end',
     },
     gameIcon: {
-        width: 48,
-        height: 48,
+        width: 56,
+        height: 56,
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
-        borderRadius: 24,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
     },
     gameName: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: 'bold',
         color: 'white',
         marginBottom: 8,
@@ -528,4 +709,28 @@ const styles = StyleSheet.create({
         color: 'rgba(255, 255, 255, 0.9)',
         lineHeight: 20,
     },
+    playIcon: {
+        position: 'absolute',
+        top: 20,
+        right: 20,
+        width: 40,
+        height: 40,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    // \u2500\u2500 Dashboard stats
+    statsRow: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, gap: 8 },
+    statCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', gap: 2 },
+    statEmoji: { fontSize: 20 },
+    statValue: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    statLabel: { color: 'rgba(156,163,175,0.7)', fontSize: 9, textAlign: 'center' },
+    // \u2500\u2500 Shortcut cards
+    shortcutsRow: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 20, gap: 8 },
+    shortcutCard: { flex: 1, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+    shortcutGrad: { padding: 14, alignItems: 'center', gap: 4 },
+    shortcutEmoji: { fontSize: 24 },
+    shortcutTitle: { color: 'white', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+    shortcutDesc: { color: 'rgba(156,163,175,0.6)', fontSize: 9, textAlign: 'center' },
 });

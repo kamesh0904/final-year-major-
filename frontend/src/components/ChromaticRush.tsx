@@ -16,7 +16,7 @@ const ChromaticRush = () => {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [rotation, setRotation] = useState(0);
-  const [speed, setSpeed] = useState(1.2);
+  const [speed, setSpeed] = useState(0.9);
 
   // Load High Score
   useEffect(() => {
@@ -46,7 +46,7 @@ const ChromaticRush = () => {
     setIsGameOver(false);
     setScore(0);
     setRotation(0);
-    setSpeed(1.2);
+    setSpeed(0.9);
 
     const baseColors = colorPalette.slice(0, 3);
     setArcColors(baseColors);
@@ -83,7 +83,10 @@ const ChromaticRush = () => {
       setScore(newScore);
       if (newScore > highScore) setHighScore(newScore);
 
-      setSpeed((s) => s + 0.12);
+      setSpeed((s) => s + 0.05);
+
+      // CRITICAL: Reset this BEFORE changing colors to prevent false game-over
+      setWasInMatchingArc(false);
 
       // Level Up: Add more colors every 5 points
       if (newScore % 5 === 0 && arcColors.length < colorPalette.length) {
@@ -93,8 +96,6 @@ const ChromaticRush = () => {
       } else {
         setRadiusColor(getRandomDifferentColor(radiusColor, arcColors));
       }
-
-      setWasInMatchingArc(false);
     } else {
       // FAIL
       endGame();
@@ -235,20 +236,21 @@ const ChromaticRush = () => {
           <button onClick={() => navigate("/dashboard")} className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition">
             <X size={24} />
           </button>
-
-          <div className="flex items-center gap-4">
-            <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
-              <Trophy size={18} className="text-yellow-400" />
-              <span className="font-mono text-xl font-bold">{score}</span>
-            </div>
-            <div className="text-xs text-gray-500 font-mono">
-              HIGH: {highScore}
-            </div>
-          </div>
         </div>
 
         {/* --- GAME CARD --- */}
         <div className="relative w-full max-w-md bg-[#120b22] border border-white/10 rounded-3xl p-8 shadow-2xl z-10 flex flex-col items-center">
+
+          {/* Score Display - Above Title */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl flex items-center gap-2 backdrop-blur-md">
+              <Trophy size={20} className="text-yellow-400" />
+              <span className="font-mono text-2xl font-bold">{score}</span>
+            </div>
+            <div className="text-sm text-gray-400 font-mono">
+              HIGH: {highScore}
+            </div>
+          </div>
 
           {/* Title */}
           <div className="text-center mb-8">
@@ -288,7 +290,7 @@ const ChromaticRush = () => {
             {isGameOver && (
               <div className="text-center animate-fade-in">
                 <p className="text-red-400 font-bold text-xl mb-4 flex items-center justify-center gap-2">
-                  <Flame size={20} /> CONNECTION LOST
+                  <Flame size={20} /> GAME OVER
                 </p>
                 <button
                   onClick={startGame}

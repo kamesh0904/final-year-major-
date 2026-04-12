@@ -8,11 +8,13 @@ import {
     Alert,
     RefreshControl,
     Dimensions,
+    Image,
+    TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../config/api';
+import { BG_GRADIENT, GRADIENT_PRIMARY, COLOR, ORB } from '../config/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -21,7 +23,13 @@ export default function ProfileScreen({ navigation }: any) {
     const [refreshing, setRefreshing] = useState(false);
     const [profile, setProfile] = useState<any>(null);
     const [highScores, setHighScores] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [gameStats, setGameStats] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [editingContact, setEditingContact] = useState(false);
+    const [contactInfo, setContactInfo] = useState({
+        address: '',
+        emergency_phone: '',
+    });
 
     const username = user?.email?.split('@')[0] || 'Neuro Explorer';
 
@@ -31,16 +39,19 @@ export default function ProfileScreen({ navigation }: any) {
 
     const loadProfileData = async () => {
         try {
-            const [profileRes, scoresRes] = await Promise.all([
-                api.get('/profile').catch(() => ({ data: null })),
-                api.get('/games/high-scores').catch(() => ({ data: {} })),
-            ]);
-            setProfile(profileRes.data);
-
-            if (scoresRes.data && typeof scoresRes.data === 'object') {
-                const scores = Object.entries(scoresRes.data).map(([game, score]) => ({ game, score }));
-                setHighScores(scores);
-            }
+            // Mock data for now - no DB connection
+            setProfile({
+                xp: 0,
+                streak_count: 0,
+                address: '',
+                emergency_phone: '',
+            });
+            setHighScores([]);
+            setGameStats([]);
+            setContactInfo({
+                address: '',
+                emergency_phone: '',
+            });
         } catch (error) {
             console.error('Error loading profile:', error);
         } finally {
@@ -65,21 +76,17 @@ export default function ProfileScreen({ navigation }: any) {
                     style: 'destructive',
                     onPress: async () => {
                         await signOut();
-                        navigation.replace('Login');
+                        navigation.replace('Landing');
                     },
                 },
             ]
         );
     };
 
-    const generateReport = async (type: 'daily' | 'weekly') => {
-        try {
-            Alert.alert('Generating Report', 'Please wait...');
-            const response = await api.post(`/reports/${type}`);
-            Alert.alert('Success', `${type === 'daily' ? 'Daily' : 'Weekly'} report generated!`);
-        } catch (error) {
-            Alert.alert('Error', 'Failed to generate report');
-        }
+    const handleSaveContactInfo = () => {
+        setProfile({ ...profile, ...contactInfo });
+        setEditingContact(false);
+        Alert.alert('Success', 'Contact information updated!');
     };
 
     if (loading) {
@@ -101,7 +108,7 @@ export default function ProfileScreen({ navigation }: any) {
         <View style={styles.container}>
             {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                colors={BG_GRADIENT}
                 style={styles.backgroundGradient}
             />
 
@@ -113,15 +120,24 @@ export default function ProfileScreen({ navigation }: any) {
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#A855F7" />
                 }
             >
+                {/* Logo */}
+                <View style={styles.logoContainer}>
+                    <Image
+                        source={require('../../assets/logo.png')}
+                        style={styles.logo}
+                        resizeMode="contain"
+                    />
+                </View>
+
                 {/* Profile Header */}
                 <View style={styles.profileHeader}>
                     {/* Avatar */}
                     <View style={styles.avatarContainer}>
                         <LinearGradient
-                            colors={['#A855F7', '#6366F1']}
+                            colors={GRADIENT_PRIMARY}
                             style={styles.avatar}
                         >
                             <Ionicons name="person" size={48} color="white" />
@@ -138,15 +154,15 @@ export default function ProfileScreen({ navigation }: any) {
                         {/* Quick Stats */}
                         <View style={styles.statsContainer}>
                             <View style={styles.statItem}>
-                                <View style={styles.statIcon}>
+                                <View style={styles.statIconWrapper}>
                                     <Ionicons name="flame" size={16} color="#F59E0B" />
                                 </View>
                                 <Text style={styles.statValue}>{profile?.streak_count || 0}</Text>
                                 <Text style={styles.statLabel}>Day Streak</Text>
                             </View>
                             <View style={styles.statItem}>
-                                <View style={styles.statIcon}>
-                                    <Ionicons name="trophy" size={16} color="#F59E0B" />
+                                <View style={styles.statIconWrapper}>
+                                    <Ionicons name="trophy" size={16} color="#FBBF24" />
                                 </View>
                                 <Text style={styles.statValue}>{highScores.length}</Text>
                                 <Text style={styles.statLabel}>Games</Text>
@@ -161,7 +177,7 @@ export default function ProfileScreen({ navigation }: any) {
                             onPress={() => navigation.navigate('Chat')}
                         >
                             <LinearGradient
-                                colors={['rgba(99, 102, 241, 0.8)', 'rgba(139, 92, 246, 0.8)']}
+                                colors={GRADIENT_PRIMARY}
                                 style={styles.buttonGradient}
                             >
                                 <Ionicons name="chatbubbles" size={18} color="white" />
@@ -171,47 +187,38 @@ export default function ProfileScreen({ navigation }: any) {
                     </View>
                 </View>
 
-                {/* Reports Section */}
+                {/* Today's Gentle Goal */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Reports</Text>
-
-                    <TouchableOpacity
-                        style={styles.card}
-                        onPress={() => generateReport('daily')}
-                    >
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="document-text" size={24} color="#3B82F6" />
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionIcon}>
+                            <Ionicons name="flag" size={20} color="#FBBF24" />
                         </View>
-                        <View style={styles.cardContent}>
-                            <Text style={styles.cardTitle}>Daily Report</Text>
-                            <Text style={styles.cardSubtitle}>Generate today's insights</Text>
+                        <Text style={styles.sectionTitle}>Today's Gentle Goal</Text>
+                    </View>
+                    <View style={styles.card}>
+                        <Text style={styles.goalText}>
+                            Take 5 deep breaths when you feel overwhelmed today.
+                        </Text>
+                        <View style={styles.streakContainer}>
+                            <Ionicons name="flame" size={20} color="#F59E0B" />
+                            <Text style={styles.streakText}>{profile?.streak_count || 0} day streak</Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={24} color="rgba(156, 163, 175, 1)" />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.card}
-                        onPress={() => generateReport('weekly')}
-                    >
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="calendar" size={24} color="#8B5CF6" />
-                        </View>
-                        <View style={styles.cardContent}>
-                            <Text style={styles.cardTitle}>Weekly Report</Text>
-                            <Text style={styles.cardSubtitle}>View weekly progress</Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={24} color="rgba(156, 163, 175, 1)" />
-                    </TouchableOpacity>
+                    </View>
                 </View>
 
-                {/* High Scores */}
+                {/* Personal Bests */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Personal Bests</Text>
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionIcon}>
+                            <Ionicons name="trophy" size={20} color="#FBBF24" />
+                        </View>
+                        <Text style={styles.sectionTitle}>Personal Bests</Text>
+                    </View>
 
                     {highScores.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <View style={styles.emptyIcon}>
-                                <Ionicons name="trophy" size={24} color="rgba(248, 180, 52, 0.5)" />
+                                <Ionicons name="trophy" size={24} color="rgba(251, 191, 36, 0.5)" />
                             </View>
                             <Text style={styles.emptyTitle}>Your journey begins here</Text>
                             <TouchableOpacity
@@ -219,7 +226,7 @@ export default function ProfileScreen({ navigation }: any) {
                                 onPress={() => navigation.navigate('Games')}
                             >
                                 <LinearGradient
-                                    colors={['#F43F5E', '#EF4444']}
+                                    colors={['#F43F5E', '#A855F7']}
                                     style={styles.buttonGradient}
                                 >
                                     <Text style={styles.buttonText}>Start Your First Game</Text>
@@ -231,61 +238,181 @@ export default function ProfileScreen({ navigation }: any) {
                             {highScores.map((score, idx) => (
                                 <View key={idx} style={styles.scoreCard}>
                                     <Text style={styles.scoreName}>{score.game}</Text>
-                                    <Text style={styles.scoreValue}>{score.score?.toLocaleString?.() || score.score}</Text>
+                                    <Text style={styles.scoreValue}>
+                                        {score.score?.toLocaleString?.() || score.score}
+                                    </Text>
                                 </View>
                             ))}
                         </View>
                     )}
                 </View>
 
-                {/* Personal Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Personal</Text>
+                {/* Game Statistics */}
+                {gameStats.length > 0 && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.sectionIcon}>
+                                <Ionicons name="game-controller" size={20} color="#A855F7" />
+                            </View>
+                            <Text style={styles.sectionTitle}>Game Statistics</Text>
+                        </View>
+                        <View style={styles.gameStatsGrid}>
+                            {gameStats.map((stat, idx) => (
+                                <View key={idx} style={styles.gameStatCard}>
+                                    <Text style={styles.gameStatName}>{stat.game}</Text>
+                                    <Text style={styles.gameStatSessions}>{stat.sessions} sessions</Text>
+                                    <View style={styles.statGrid}>
+                                        <View style={styles.statColumn}>
+                                            <Text style={styles.statNumber}>{stat.bestScore}</Text>
+                                            <Text style={styles.statTag}>Best</Text>
+                                        </View>
+                                        <View style={styles.statColumn}>
+                                            <Text style={[styles.statNumber, { color: '#3B82F6' }]}>
+                                                {stat.averageScore}
+                                            </Text>
+                                            <Text style={styles.statTag}>Average</Text>
+                                        </View>
+                                        <View style={styles.statColumn}>
+                                            <Text style={[styles.statNumber, { color: '#A855F7' }]}>
+                                                {stat.totalScore}
+                                            </Text>
+                                            <Text style={styles.statTag}>Total</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                )}
 
-                    <TouchableOpacity style={styles.card}>
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="book" size={24} color="#F59E0B" />
+                {/* Emergency Contact */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.sectionIcon}>
+                            <Ionicons name="call" size={20} color="#10B981" />
                         </View>
-                        <View style={styles.cardContent}>
-                            <Text style={styles.cardTitle}>My Diary</Text>
-                            <Text style={styles.cardSubtitle}>Private journal entries</Text>
+                        <Text style={styles.sectionTitle}>Emergency Contact</Text>
+                        {!editingContact ? (
+                            <TouchableOpacity onPress={() => setEditingContact(true)} style={styles.editButton}>
+                                <Ionicons name="pencil" size={16} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={styles.editActions}>
+                                <TouchableOpacity onPress={handleSaveContactInfo} style={styles.saveButton}>
+                                    <Ionicons name="checkmark" size={16} color="#10B981" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setEditingContact(false);
+                                        setContactInfo({
+                                            address: profile?.address || '',
+                                            emergency_phone: profile?.emergency_phone || '',
+                                        });
+                                    }}
+                                    style={styles.cancelButton}
+                                >
+                                    <Ionicons name="close" size={16} color="#EF4444" />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.contactCard}>
+                        <View style={styles.contactField}>
+                            <View style={styles.contactLabel}>
+                                <Ionicons name="location" size={14} color="#3B82F6" />
+                                <Text style={styles.contactLabelText}>Address</Text>
+                            </View>
+                            {editingContact ? (
+                                <TextInput
+                                    style={styles.contactInput}
+                                    value={contactInfo.address}
+                                    onChangeText={(text) =>
+                                        setContactInfo({ ...contactInfo, address: text })
+                                    }
+                                    placeholder="Enter your address..."
+                                    placeholderTextColor="#6B7280"
+                                    multiline
+                                />
+                            ) : (
+                                <Text style={styles.contactValue}>
+                                    {profile?.address || 'No address provided'}
+                                </Text>
+                            )}
                         </View>
-                        <Ionicons name="chevron-forward" size={24} color="rgba(156, 163, 175, 1)" />
+
+                        <View style={styles.contactField}>
+                            <View style={styles.contactLabel}>
+                                <Ionicons name="call" size={14} color="#10B981" />
+                                <Text style={styles.contactLabelText}>Emergency Phone</Text>
+                            </View>
+                            {editingContact ? (
+                                <TextInput
+                                    style={styles.contactInput}
+                                    value={contactInfo.emergency_phone}
+                                    onChangeText={(text) =>
+                                        setContactInfo({ ...contactInfo, emergency_phone: text })
+                                    }
+                                    placeholder="Enter emergency phone..."
+                                    placeholderTextColor="#6B7280"
+                                    keyboardType="phone-pad"
+                                />
+                            ) : (
+                                <Text style={styles.contactValue}>
+                                    {profile?.emergency_phone || 'No emergency contact provided'}
+                                </Text>
+                            )}
+                        </View>
+                    </View>
+                </View>
+
+                {/* Personal */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitleSimple}>Personal</Text>
+                    <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('Diary')}>
+                        <View style={styles.menuIcon}>
+                            <Ionicons name="book" size={24} color="#F472B6" />
+                        </View>
+                        <View style={styles.menuContent}>
+                            <Text style={styles.menuTitle}>My Diary</Text>
+                            <Text style={styles.menuSubtitle}>Private journal entries</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={24} color="#6B7280" />
                     </TouchableOpacity>
                 </View>
 
                 {/* Settings */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Settings</Text>
+                    <Text style={styles.sectionTitleSimple}>Settings</Text>
 
-                    <TouchableOpacity style={styles.card}>
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="notifications" size={24} color="#10B981" />
+                    <TouchableOpacity style={styles.menuCard}>
+                        <View style={styles.menuIcon}>
+                            <Ionicons name="document-text" size={24} color="#3B82F6" />
                         </View>
-                        <View style={styles.cardContent}>
-                            <Text style={styles.cardTitle}>Notifications</Text>
-                            <Text style={styles.cardSubtitle}>Manage notifications</Text>
+                        <View style={styles.menuContent}>
+                            <Text style={styles.menuTitle}>Daily Report</Text>
+                            <Text style={styles.menuSubtitle}>Generate today's insights</Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={24} color="rgba(156, 163, 175, 1)" />
+                        <Ionicons name="chevron-forward" size={24} color="#6B7280" />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.card}>
-                        <View style={styles.cardIcon}>
-                            <Ionicons name="help-circle" size={24} color="#3B82F6" />
+                    <TouchableOpacity style={styles.menuCard}>
+                        <View style={styles.menuIcon}>
+                            <Ionicons name="calendar" size={24} color="#8B5CF6" />
                         </View>
-                        <View style={styles.cardContent}>
-                            <Text style={styles.cardTitle}>Help & Support</Text>
-                            <Text style={styles.cardSubtitle}>Get help</Text>
+                        <View style={styles.menuContent}>
+                            <Text style={styles.menuTitle}>Weekly Report</Text>
+                            <Text style={styles.menuSubtitle}>View weekly progress</Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={24} color="rgba(156, 163, 175, 1)" />
+                        <Ionicons name="chevron-forward" size={24} color="#6B7280" />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.card} onPress={handleSignOut}>
-                        <View style={styles.cardIcon}>
+                    <TouchableOpacity style={styles.menuCard} onPress={handleSignOut}>
+                        <View style={styles.menuIcon}>
                             <Ionicons name="log-out" size={24} color="#EF4444" />
                         </View>
-                        <View style={styles.cardContent}>
-                            <Text style={[styles.cardTitle, { color: '#EF4444' }]}>Sign Out</Text>
+                        <View style={styles.menuContent}>
+                            <Text style={[styles.menuTitle, { color: '#EF4444' }]}>Sign Out</Text>
                         </View>
                     </TouchableOpacity>
                 </View>
@@ -320,14 +447,14 @@ const styles = StyleSheet.create({
         height: 384,
         backgroundColor: '#8B5CF6',
         top: height * 0.25,
-        right: width * 0.33,
+        right: -100,
     },
     floatingElement2: {
         width: 320,
         height: 320,
         backgroundColor: '#6366F1',
         bottom: height * 0.25,
-        left: width * 0.33,
+        left: -80,
     },
     loadingContainer: {
         flex: 1,
@@ -345,7 +472,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     loadingText: {
-        color: 'rgba(156, 163, 175, 1)',
+        color: '#9CA3AF',
         fontSize: 16,
     },
     scrollView: {
@@ -355,6 +482,14 @@ const styles = StyleSheet.create({
         paddingTop: 60,
         paddingHorizontal: 24,
         paddingBottom: 100,
+    },
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    logo: {
+        width: 60,
+        height: 60,
     },
     profileHeader: {
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -376,13 +511,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 2,
         borderColor: 'rgba(168, 85, 247, 0.3)',
+        shadowColor: '#A855F7',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
     profileInfo: {
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: 20,
     },
     profileName: {
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: 'bold',
         color: 'white',
         marginBottom: 8,
@@ -395,12 +535,12 @@ const styles = StyleSheet.create({
     },
     statsContainer: {
         flexDirection: 'row',
-        gap: 24,
+        gap: 32,
     },
     statItem: {
         alignItems: 'center',
     },
-    statIcon: {
+    statIconWrapper: {
         marginBottom: 4,
     },
     statValue: {
@@ -410,23 +550,28 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     statLabel: {
-        fontSize: 12,
-        color: 'rgba(156, 163, 175, 1)',
+        fontSize: 11,
+        color: '#9CA3AF',
         textTransform: 'uppercase',
-        letterSpacing: 1,
+        letterSpacing: 0.5,
     },
     actionButtons: {
         width: '100%',
     },
     actionButton: {
-        borderRadius: 16,
+        borderRadius: 12,
         overflow: 'hidden',
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
     buttonGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
+        paddingVertical: 14,
         paddingHorizontal: 24,
         gap: 8,
     },
@@ -436,45 +581,82 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     section: {
-        marginBottom: 32,
+        marginBottom: 28,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    sectionIcon: {
+        width: 40,
+        height: 40,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     sectionTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: 'white',
+        flex: 1,
+    },
+    sectionTitleSimple: {
         fontSize: 18,
         fontWeight: 'bold',
         color: 'white',
         marginBottom: 16,
         marginLeft: 4,
     },
-    card: {
+    editButton: {
+        padding: 8,
+        borderRadius: 8,
+    },
+    editActions: {
         flexDirection: 'row',
-        alignItems: 'center',
+        gap: 8,
+    },
+    saveButton: {
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    },
+    cancelButton: {
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    },
+    card: {
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        borderRadius: 20,
+        padding: 20,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
     },
-    cardIcon: {
-        marginRight: 16,
-    },
-    cardContent: {
-        flex: 1,
-    },
-    cardTitle: {
+    goalText: {
         fontSize: 16,
-        fontWeight: '600',
-        color: 'white',
-        marginBottom: 2,
+        color: '#D1D5DB',
+        lineHeight: 24,
+        marginBottom: 16,
     },
-    cardSubtitle: {
+    streakContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    streakText: {
         fontSize: 14,
-        color: 'rgba(107, 114, 128, 1)',
+        color: '#F59E0B',
+        fontWeight: '600',
+        marginLeft: 8,
     },
     emptyCard: {
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
         borderRadius: 24,
-        padding: 48,
+        padding: 40,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -488,15 +670,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     emptyTitle: {
-        fontSize: 18,
-        color: 'rgba(156, 163, 175, 1)',
+        fontSize: 16,
+        color: '#9CA3AF',
         marginBottom: 24,
     },
     startButton: {
-        borderRadius: 16,
+        borderRadius: 12,
         overflow: 'hidden',
+        shadowColor: '#F43F5E',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
     scoresGrid: {
         flexDirection: 'row',
@@ -509,21 +698,121 @@ const styles = StyleSheet.create({
         padding: 16,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        minWidth: '45%',
+        width: (width - 72) / 2,
         alignItems: 'center',
     },
     scoreName: {
         fontSize: 14,
         fontWeight: '600',
-        color: 'rgba(229, 231, 235, 1)',
+        color: '#E5E7EB',
         marginBottom: 8,
         textAlign: 'center',
     },
     scoreValue: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#10B981',
         fontFamily: 'monospace',
+    },
+    gameStatsGrid: {
+        gap: 16,
+    },
+    gameStatCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    gameStatName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: 'white',
+        marginBottom: 4,
+    },
+    gameStatSessions: {
+        fontSize: 12,
+        color: '#9CA3AF',
+        marginBottom: 16,
+    },
+    statGrid: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    statColumn: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    statNumber: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#10B981',
+        marginBottom: 4,
+    },
+    statTag: {
+        fontSize: 12,
+        color: '#9CA3AF',
+    },
+    contactCard: {
+        gap: 20,
+    },
+    contactField: {
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    contactLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    contactLabelText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#D1D5DB',
+    },
+    contactValue: {
+        fontSize: 14,
+        color: '#E5E7EB',
+        lineHeight: 20,
+    },
+    contactInput: {
+        fontSize: 14,
+        color: 'white',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 12,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    menuCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    menuIcon: {
+        marginRight: 16,
+    },
+    menuContent: {
+        flex: 1,
+    },
+    menuTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: 'white',
+        marginBottom: 2,
+    },
+    menuSubtitle: {
+        fontSize: 14,
+        color: '#6B7280',
     },
     footer: {
         alignItems: 'center',
@@ -531,6 +820,6 @@ const styles = StyleSheet.create({
     },
     footerText: {
         fontSize: 12,
-        color: 'rgba(156, 163, 175, 1)',
+        color: '#6B7280',
     },
 });

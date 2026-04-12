@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../config/supabase';
+import { BG_GRADIENT, GRADIENT_PRIMARY, COLOR, GLASS, ORB } from '../config/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -40,7 +41,7 @@ export default function LandingScreen({ navigation }: LandingScreenProps) {
     if (loading) {
         return (
             <LinearGradient
-                colors={['#0a0514', '#1a0b2e', '#0f0619']}
+                colors={BG_GRADIENT}
                 style={styles.container}
             >
                 <View style={styles.loadingContainer}>
@@ -87,7 +88,7 @@ export default function LandingScreen({ navigation }: LandingScreenProps) {
                             onPress={() => navigation.navigate('Main')}
                         >
                             <LinearGradient
-                                colors={['#10b981', '#059669', '#047857']}
+                                colors={[COLOR.emerald500, '#059669', '#047857']}
                                 style={styles.buttonGradient}
                             >
                                 <Ionicons name="heart" size={20} color="white" />
@@ -127,7 +128,7 @@ export default function LandingScreen({ navigation }: LandingScreenProps) {
                                 onPress={() => navigation.navigate('Signup')}
                             >
                                 <LinearGradient
-                                    colors={['#8B5CF6', '#7C3AED', '#6D28D9']}
+                                    colors={GRADIENT_PRIMARY}
                                     style={styles.buttonGradient}
                                 >
                                     <Ionicons name="sparkles" size={20} color="white" />
@@ -301,6 +302,14 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginBottom: 32,
         lineHeight: 56,
+    },
+    welcomeSubtitle: {
+        fontSize: 16,
+        color: '#D1D5DB',
+        textAlign: 'center',
+        lineHeight: 24,
+        marginBottom: 32,
+        paddingHorizontal: 16,
     },
     getStartedContainer: {
         alignItems: 'center',

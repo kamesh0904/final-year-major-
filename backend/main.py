@@ -1,13 +1,14 @@
 import os
 import datetime
 import bcrypt
+import logging
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 # --- FastAPI Imports ---
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, validator, constr
 from supabase import create_client, Client
 
 # --- LangChain Imports ---
@@ -17,6 +18,9 @@ from langchain_openai import ChatOpenAI
 
 # --- Configuration ---
 from config import settings
+
+# --- Auth ---
+from auth import get_current_user
 
 # --- Logic Imports (Ensure these exist in your project) ---
 # If any of these are missing, comment them out temporarily to test the server
@@ -30,6 +34,19 @@ from agents.companion import CompanionAgent
 from agents.schemas import GameSessionInput, GameConfig
 from post_game_questionnaire_simple import router as questionnaire_router
 from weekly_report_generator_simple import router as weekly_report_router
+from audio_processing import router as audio_router
+
+# Rate limiting imports (configured after app creation)
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # 1. LOAD ENV VARIABLES (only in development)
 if not settings.is_production:
@@ -55,8 +72,15 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Personalization & Adaptive Logic API for NeuroNest",
     version=settings.VERSION,
-    debug=settings.DEBUG
+    debug=settings.DEBUG,
+    docs_url="/docs",  # Enable Swagger UI
+    redoc_url="/redoc"  # Enable ReDoc
 )
+
+# Rate Limiting Setup (must be AFTER app creation)
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ------------------ Middleware ------------------
 app.add_middleware(
@@ -91,6 +115,27 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# ------------------ Cache Init ------------------
+from core.cache import init_redis
+
+try:
+    print("💾 Initializing Redis cache...")
+    init_redis()
+except Exception as e:
+    print(f"⚠️ Cache initialization failed: {e}")
+
+# ------------------ Scheduler Init ------------------
+from scheduler import start_scheduler
+
+try:
+    print("📅 Initializing background scheduler...")
+    start_scheduler()
+    print("✅ Background scheduler started successfully")
+except Exception as e:
+    print(f"⚠️ Scheduler initialization failed: {e}")
+    import traceback
+    traceback.print_exc()
+
 # ------------------ Health Check ------------------
 @app.get("/")
 def health_check():
@@ -101,8 +146,12 @@ def health_check():
         "environment": settings.ENVIRONMENT
     }
 
+
 @app.get("/health")
-def detailed_health_check():
+async def detailed_health_check():
+    """Comprehensive health check including all dependencies"""
+    from core.cache import check_redis_connection
+    
     return {
         "status": "healthy",
         "service": "NeuroNest AI Backend",
@@ -110,8 +159,12 @@ def detailed_health_check():
         "environment": settings.ENVIRONMENT,
         "supabase_connected": supabase is not None,
         "openai_configured": bool(settings.OPENAI_API_KEY),
+        "redis_connected": await check_redis_connection(),
         "timestamp": datetime.datetime.now().isoformat()
     }
+
+# ------------------ Audio API ------------------
+app.include_router(audio_router, prefix="/api/audio", tags=["audio"])
 
 # ------------------ Request Models ------------------
 
@@ -129,10 +182,20 @@ class QuestionnaireResult(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    history: List[Dict[str, str]]
-    profile: str
+    history: List[Dict[str, str]] = []       # In-session conversation history
+    profile: str = "General"                  # User's neurotype (ADHD, Anxiety, etc.)
     game_stats: Optional[str] = "No recent games played."
     user_id: Optional[str] = None
+    session_id: Optional[str] = None          # Groups messages per session
+
+
+class ChatFeedbackRequest(BaseModel):
+    message_id: str        # ID of the AI message being rated
+    user_id: str
+    rating: str            # 'positive' | 'negative'
+    user_message: str      # The user's message that prompted this AI reply
+    ai_response: str       # The AI reply being rated
+    profile: str = "General"
 
 
 class WeeklyReportRequest(BaseModel):
@@ -179,25 +242,6 @@ class DiaryOTPVerify(BaseModel):
 # ------------------ Routes ------------------
 
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint for monitoring"""
-    return {
-        "status": "healthy",
-        "service": "NeuroNest API",
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-
-
-@app.get("/")
-def root():
-    return {
-        "status": "NeuroNest AI Backend Running",
-        "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT
-    }
-
-
 @app.post("/submit-questionnaire", response_model=QuestionnaireResult)
 def submit_questionnaire(payload: QuestionnaireSubmission):
     scores = score_questionnaire(payload.answers)
@@ -227,12 +271,76 @@ def submit_game_session(payload: GameSessionInput):
     return new_config
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHAT ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/chat/history")
+async def get_chat_history(user_id: str, limit: int = 20):
+    """
+    Load the last N messages for a user so the mobile app can
+    restore conversation history on re-open.
+    """
+    if not supabase:
+        return {"messages": []}
+    try:
+        result = supabase.table("chat_messages") \
+            .select("id, role, content, created_at") \
+            .eq("user_id", user_id) \
+            .order("created_at", desc=False) \
+            .limit(limit) \
+            .execute()
+        messages = result.data or []
+        print(f"📜 Loaded {len(messages)} chat messages for user {user_id}")
+        return {"messages": messages}
+    except Exception as e:
+        print(f"❌ Chat history load error: {e}")
+        return {"messages": []}
+
+
+@app.post("/chat/feedback")
+async def save_chat_feedback(payload: ChatFeedbackRequest):
+    """
+    Save thumbs up/down on an AI message.
+    Positive-rated pairs are used for fine-tuning training data.
+    """
+    try:
+        from training_pipeline import save_feedback
+        save_feedback(
+            message_id=payload.message_id,
+            user_id=payload.user_id,
+            rating=payload.rating,
+            user_msg=payload.user_message,
+            ai_msg=payload.ai_response,
+            profile=payload.profile
+        )
+        return {"status": "success", "rating": payload.rating}
+    except Exception as e:
+        print(f"❌ Feedback save error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 @app.post("/chat", response_model=Dict[str, str])
-def chat_with_companion(payload: ChatRequest):
+@limiter.limit("10/minute")  # 10 messages per minute per IP
+async def chat_with_companion(request: Request, payload: ChatRequest):
+    """
+    Chat with AI therapeutic companion.
+    Rate limited to 10 messages/minute to prevent abuse and control costs.
+    """
+    from core.cache import get_cached_response, cache_response
+    
     if not companion:
         print("❌ Chat request failed: Companion agent not initialized")
         return {"response": "I'm currently undergoing maintenance (AI modules offline). Please try again in a few minutes."}
 
+    # Check cache first
+    if payload.user_id:
+        cached = get_cached_response(payload.user_id, payload.message, payload.history)
+        if cached:
+            print(f"✅ Cache HIT - returning cached response for user {payload.user_id}")
+            return {"response": cached, "cached": True}
+
+    # Build conversation history
     lc_history = []
     for msg in payload.history:
         if msg["role"] == "user":
@@ -243,6 +351,7 @@ def chat_with_companion(payload: ChatRequest):
     # Debug incoming user_id
     print(f"💬 Chatting with user_id: {payload.user_id}")
 
+    # Get AI response
     response_text = companion.get_response(
         user_message=payload.message,
         history=lc_history,
@@ -250,11 +359,28 @@ def chat_with_companion(payload: ChatRequest):
         game_stats=payload.game_stats,
         user_id=payload.user_id
     )
-    return {"response": response_text}
+    
+    # Cache the response for future use
+    if payload.user_id:
+        cache_response(payload.user_id, payload.message, payload.history, response_text)
+
+    # ── Persist both messages to chat_messages table ──────────────────────────
+    if payload.user_id and supabase:
+        try:
+            from training_pipeline import save_chat_message
+            session_id = payload.session_id or payload.user_id
+            save_chat_message(payload.user_id, "user",      payload.message,  session_id)
+            save_chat_message(payload.user_id, "assistant", response_text,    session_id)
+        except Exception as db_err:
+            print(f"⚠️ Could not persist chat messages: {db_err}")
+    
+    return {"response": response_text, "cached": False}
 
 
 @app.post("/generate-weekly-report")
-async def generate_weekly_report(payload: WeeklyReportRequest):
+@limiter.limit("3/hour")  # 3 reports per hour - expensive operation
+async def generate_weekly_report(request: Request, payload: WeeklyReportRequest):
+    """Generate AI-powered weekly insight report. Rate limited to 3/hour."""
     print(f"📊 Generating Report for User: {payload.userId}")
     try:
         # A. Profile
@@ -411,14 +537,23 @@ async def verify_diary_password(payload: DiaryPasswordVerify):
 
 
 @app.get("/debug-diary-password/{user_id}")
-async def debug_diary_password(user_id: str):
-    """Debug endpoint to check if user has diary password set"""
+async def debug_diary_password(user_id: str, current_user: str = Depends(get_current_user)):
+    """Debug endpoint to check if user has diary password set (Development only)"""
+    
+    # Only allow in development environment
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Only allow users to check their own password status
+    if current_user != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
     print(f"🔍 Checking diary password status for user: {user_id}")
     try:
         response = supabase.table("profiles").select("diary_password_hash, diary_created_at, email").eq("id", user_id).single().execute()
         
         if not response.data:
-            return {"status": "error", "message": "User not found"}
+            raise HTTPException(status_code=404, detail="User not found")
         
         data = response.data
         has_password = bool(data.get("diary_password_hash"))
@@ -426,15 +561,15 @@ async def debug_diary_password(user_id: str):
         return {
             "status": "success",
             "user_id": user_id,
-            "email": data.get("email"),
             "has_diary_password": has_password,
             "diary_created_at": data.get("diary_created_at"),
-            "password_hash_preview": data.get("diary_password_hash", "")[:20] + "..." if has_password else None,
             "message": "Diary password is set" if has_password else "NO DIARY PASSWORD SET - User needs to create one first!"
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ Debug Error: {e}")
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Debug endpoint error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/reset-diary-password")
 async def reset_diary_password(payload: DiaryPasswordReset):
@@ -717,6 +852,89 @@ async def delete_diary_entry(entry_id: str, user_id: str):
             
     except Exception as e:
         print(f"❌ Diary Entry Deletion Error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ------------------ Pattern Detection Endpoints ------------------
+from agents.pattern_detection import pattern_detector
+
+@app.get("/api/wellness/analyze-patterns/{user_id}")
+async def analyze_user_patterns(user_id: str):
+    """
+    Analyze user behavior patterns
+    Returns comprehensive pattern analysis
+    """
+    try:
+        print(f"🔍 Analyzing patterns for user: {user_id}")
+        
+        # Analyze patterns
+        patterns = pattern_detector.analyze_activity_pattern(user_id, days=7)
+        
+        # Check if intervention needed
+        needs_check_in = pattern_detector.should_send_check_in(patterns)
+        
+        # Generate messages
+        check_in_message = None
+        encouragement_message = None
+        
+        if needs_check_in:
+            check_in_message = pattern_detector.generate_check_in_message(patterns)
+        elif patterns.get('positive_patterns'):
+            encouragement_message = pattern_detector.generate_encouragement_message(patterns)
+        
+        return {
+            "status": "success",
+            "patterns": patterns,
+            "needs_check_in": needs_check_in,
+            "check_in_message": check_in_message,
+            "encouragement_message": encouragement_message,
+            "analyzed_at": datetime.datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Pattern analysis error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/wellness/check-ins/{user_id}")
+async def get_wellness_checkins(user_id: str, limit: int = 10):
+    """Get recent wellness check-ins for user"""
+    try:
+        result = supabase.table("wellness_checkins").select(
+            "*"
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
+        
+        return {
+            "status": "success",
+            "check_ins": result.data if result.data else [],
+            "count": len(result.data) if result.data else 0
+        }
+        
+    except Exception as e:
+        print(f"❌ Error fetching check-ins: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/wellness/respond-to-checkin")
+async def respond_to_checkin(payload: dict):
+    """Record user response to wellness check-in"""
+    try:
+        checkin_id = payload.get('checkin_id')
+        response_text = payload.get('response')
+        
+        if not checkin_id or not response_text:
+            return {"status": "error", "message": "Missing required fields"}
+        
+        # Update check-in with response
+        result = supabase.table("wellness_checkins").update({
+            "user_response": response_text,
+            "responded_at": datetime.datetime.now().isoformat()
+        }).eq("id", checkin_id).execute()
+        
+        return {"status": "success", "message": "Response recorded"}
+        
+    except Exception as e:
+        print(f"❌ Error recording response: {e}")
         return {"status": "error", "message": str(e)}
 
 

@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { logger } from "../utils/logger";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 export default function NeuroChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,7 +17,6 @@ export default function NeuroChat() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -24,50 +24,51 @@ export default function NeuroChat() {
   }, [messages, isOpen]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
 
-    const userMsg: Message = { role: "user", content: input };
+    const userMsg: Message = { role: "user", content: trimmedInput };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
 
-    // Get Profile context from LocalStorage (saved during Home.tsx load)
-    // We assume Home.tsx saved the "traits" or "scores" to localStorage.
-    // For now, let's grab the raw questionnaire answers or a stored profile string.
-    // You might want to update Home.tsx to save: localStorage.setItem("activeProfile", "ADHD");
     const profileContext = localStorage.getItem("activeProfile") || "General Neurodivergent";
-
-    // Get recent game stats (optional)
     const recentGame = localStorage.getItem("lastGamePlayed") || "None";
 
-    // Get user ID from Supabase auth
-    let userId = null;
+    let userId: string | null = null;
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      userId = user?.id;
+      userId = user?.id || null;
     } catch (error) {
-      console.error("Error getting user:", error);
+      logger.error("Error getting user:", error);
     }
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMsg.content,
-          history: messages, // Send history for context
+          history: messages,
           profile: profileContext,
           game_stats: `Last game: ${recentGame}`,
-          user_id: userId // Add user_id for diary access
+          user_id: userId
         }),
       });
 
-      const data = await res.json();
+      if (!response.ok) {
+        throw new Error(`Chat request failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
       const aiMsg: Message = { role: "assistant", content: data.response };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error) {
-      console.error("Chat Error:", error);
-      const errorMsg: Message = { role: "assistant", content: "Sorry, I'm having trouble connecting right now." };
+      logger.error("Chat Error:", error);
+      const errorMsg: Message = {
+        role: "assistant",
+        content: "Sorry, I'm having trouble connecting right now."
+      };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);

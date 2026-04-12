@@ -40,14 +40,12 @@ export default function Signup() {
 
         if (profileError) throw profileError;
 
-        // 3. Save session locally
-        localStorage.setItem("user", JSON.stringify(data.user));
-
-        // 4. Clear any old questionnaire data
+        // 3. Supabase handles session storage automatically via cookies
+        // Clear any old questionnaire data
         localStorage.removeItem('hasCompletedQuestionnaire');
         localStorage.removeItem('activeProfile');
 
-        // 5. FORCE REDIRECT to Questionnaire
+        // 4. FORCE REDIRECT to Questionnaire
         navigate("/questionnaire");
       }
     } catch (err: any) {
