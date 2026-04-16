@@ -17,33 +17,33 @@ import { useAuth } from '../contexts/AuthContext';
 const { width } = Dimensions.get('window');
 
 const MOODS = [
-    { score: 1, emoji: '😞', label: 'Very Low'  },
-    { score: 2, emoji: '😔', label: 'Low'        },
-    { score: 3, emoji: '😐', label: 'Neutral'    },
-    { score: 4, emoji: '🙂', label: 'Okay'       },
-    { score: 5, emoji: '😊', label: 'Good'       },
-    { score: 6, emoji: '😄', label: 'Pretty Good'},
-    { score: 7, emoji: '😁', label: 'Great'      },
-    { score: 8, emoji: '🤩', label: 'Amazing'    },
-    { score: 9, emoji: '🥳', label: 'Excellent'  },
-    { score:10, emoji: '✨', label: 'Perfect'    },
+    { score: 1, emoji: '😞', label: 'Very Low' },
+    { score: 2, emoji: '😔', label: 'Low' },
+    { score: 3, emoji: '😐', label: 'Neutral' },
+    { score: 4, emoji: '🙂', label: 'Okay' },
+    { score: 5, emoji: '😊', label: 'Good' },
+    { score: 6, emoji: '😄', label: 'Pretty Good' },
+    { score: 7, emoji: '😁', label: 'Great' },
+    { score: 8, emoji: '🤩', label: 'Amazing' },
+    { score: 9, emoji: '🥳', label: 'Excellent' },
+    { score: 10, emoji: '✨', label: 'Perfect' },
 ];
 
 const MOOD_COLORS: Record<number, [string, string]> = {
-    1:  ['#6B21A8', '#1E1B4B'],
-    2:  ['#7C3AED', '#312E81'],
-    3:  ['#4338CA', '#1E3A8A'],
-    4:  ['#2563EB', '#164E63'],
-    5:  ['#0EA5E9', '#065F46'],
-    6:  ['#10B981', '#14532D'],
-    7:  ['#22C55E', '#166534'],
-    8:  ['#84CC16', '#365314'],
-    9:  ['#EAB308', '#713F12'],
+    1: ['#6B21A8', '#1E1B4B'],
+    2: ['#7C3AED', '#312E81'],
+    3: ['#4338CA', '#1E3A8A'],
+    4: ['#2563EB', '#164E63'],
+    5: ['#0EA5E9', '#065F46'],
+    6: ['#10B981', '#14532D'],
+    7: ['#22C55E', '#166534'],
+    8: ['#84CC16', '#365314'],
+    9: ['#EAB308', '#713F12'],
     10: ['#F59E0B', '#7C2D12'],
 };
 
-const TODAY = new Date().toISOString().slice(0, 10);
-const STORAGE_KEY = `mood_checkin_${TODAY}`;
+const getToday = () => new Date().toISOString().slice(0, 10);
+// Key is computed per-user inside the component — see getStorageKey()
 
 interface Props {
     onComplete: (mood: number) => void;
@@ -51,40 +51,62 @@ interface Props {
 
 export default function MoodCheckInModal({ onComplete }: Props) {
     const { user } = useAuth();
+    const userId = user?.id ?? null;
     const [visible, setVisible] = useState(false);
     const [selected, setSelected] = useState<number | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const slideAnim = useRef(new Animated.Value(300)).current;
 
-    useEffect(() => {
-        checkIfNeeded();
-    }, []);
+    // Account-scoped key so responses never leak across accounts
+    const getStorageKey = () => (userId ? `mood_checkin_${userId}_${getToday()}` : null);
 
-    const checkIfNeeded = async () => {
-        const done = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!done) {
-            setVisible(true);
-            Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
-        } else {
-            // Already done today — pass saved mood to parent silently
-            onComplete(parseInt(done, 10));
-        }
-    };
+    useEffect(() => {
+        let active = true;
+
+        const checkIfNeeded = async () => {
+            const key = getStorageKey();
+            if (!key) {
+                setVisible(false);
+                setSelected(null);
+                return;
+            }
+
+            const done = await AsyncStorage.getItem(key);
+            if (!active) return;
+
+            if (!done) {
+                setVisible(true);
+                setSelected(null); // reset any leftover selection from previous user
+                slideAnim.setValue(300);
+                Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, friction: 8 }).start();
+                return;
+            }
+
+            const parsedMood = parseInt(done, 10);
+            setVisible(false);
+            setSelected(null);
+            onComplete(Number.isNaN(parsedMood) ? 5 : parsedMood);
+        };
+
+        checkIfNeeded();
+        return () => {
+            active = false;
+        };
+    }, [userId]);
 
     const submit = async () => {
-        if (!selected) return;
+        const key = getStorageKey();
+        if (!selected || !key || !userId) return;
         setSubmitting(true);
         try {
-            await AsyncStorage.setItem(STORAGE_KEY, String(selected));
+            await AsyncStorage.setItem(key, String(selected));
             // Save to Supabase for AI context + mood trend charts
-            if (user?.id) {
-                await supabase.from('mood_logs').insert({
-                    user_id: user.id,
-                    score: selected,
-                    logged_at: new Date().toISOString(),
-                });
-            }
-        } catch (_) {}
+            await supabase.from('mood_logs').insert({
+                user_id: userId,
+                score: selected,
+                logged_at: new Date().toISOString(),
+            });
+        } catch (_) { }
         setSubmitting(false);
         Animated.timing(slideAnim, { toValue: 600, duration: 300, useNativeDriver: true }).start(() => {
             setVisible(false);
@@ -93,7 +115,9 @@ export default function MoodCheckInModal({ onComplete }: Props) {
     };
 
     const skip = async () => {
-        await AsyncStorage.setItem(STORAGE_KEY, '5'); // neutral default
+        const key = getStorageKey();
+        if (!key) return;
+        await AsyncStorage.setItem(key, '5'); // neutral default
         Animated.timing(slideAnim, { toValue: 600, duration: 250, useNativeDriver: true }).start(() => {
             setVisible(false);
             onComplete(5);

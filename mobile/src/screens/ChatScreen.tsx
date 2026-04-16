@@ -15,6 +15,9 @@ import { BG_GRADIENT, GRADIENT_PRIMARY, COLOR, ORB } from '../config/theme';
 const { width, height } = Dimensions.get('window');
 const TODAY = new Date().toISOString().slice(0, 10);
 
+const CHAT_STORAGE_KEY = '@neuronest_chat_session';
+const CHAT_DATE_KEY = '@neuronest_chat_date';
+
 const CRISIS_LINES = [
     { name: 'AASRA',               number: '9820466626', emoji: '📞' },
     { name: 'Vandrevala Foundation',number: '18602662345', emoji: '💙' },
@@ -49,12 +52,21 @@ export default function ChatScreen() {
         if (!user?.id) return;
         loadUserProfile();
         loadGameStats();
-        loadChatHistory();
     }, [user?.id]);
+    
+    useEffect(() => {
+        // Chat history loading handles its own user checks and local storage
+        loadChatHistory();
+    }, []);
 
     useEffect(() => {
         if (messages.length > 0) {
             flatListRef.current?.scrollToEnd({ animated: true });
+            
+            // Sync to local storage
+            AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)).catch(e => 
+                console.log('Failed to save chat to local storage', e)
+            );
         }
     }, [messages]);
 
@@ -98,26 +110,46 @@ export default function ChatScreen() {
         }
     };
 
-    // ─── Load persisted chat history from backend ─────────────────────────
+    // ─── Load persisted chat history from backend & local storage ──────────
     const loadChatHistory = async () => {
-        if (!user?.id) return;
         try {
-            const response = await api.get('/chat/history', {
-                params: { user_id: user.id, limit: 20 }
-            });
-            if (response.data.messages && response.data.messages.length > 0) {
-                const loaded: Message[] = response.data.messages.map((m: any) => ({
-                    id: m.id,
-                    role: m.role,
-                    content: m.content,
-                    timestamp: new Date(m.created_at),
-                    feedback: null,
-                }));
-                setMessages(loaded);
+            const todayStr = new Date().toDateString();
+            const storedDate = await AsyncStorage.getItem(CHAT_DATE_KEY);
+            
+            let loadedFromLocal = false;
+            if (storedDate === todayStr) {
+                const storedMessages = await AsyncStorage.getItem(CHAT_STORAGE_KEY);
+                if (storedMessages) {
+                    const parsed = JSON.parse(storedMessages).map((m: any) => ({
+                        ...m,
+                        timestamp: new Date(m.timestamp)
+                    }));
+                    setMessages(parsed);
+                    loadedFromLocal = true;
+                }
+            } else {
+                await AsyncStorage.removeItem(CHAT_STORAGE_KEY);
+                await AsyncStorage.setItem(CHAT_DATE_KEY, todayStr);
+            }
+
+            // Fallback load from backend if no local data and user is logged in
+            if (!loadedFromLocal && user?.id) {
+                const response = await api.get('/chat/history', {
+                    params: { user_id: user.id, limit: 20 }
+                });
+                if (response.data.messages && response.data.messages.length > 0) {
+                    const loaded: Message[] = response.data.messages.map((m: any) => ({
+                        id: m.id,
+                        role: m.role,
+                        content: m.content,
+                        timestamp: new Date(m.created_at),
+                        feedback: null,
+                    }));
+                    setMessages(loaded);
+                }
             }
         } catch (error) {
-            // History endpoint not available — start fresh
-            console.log('Chat history not loaded, starting fresh');
+            console.log('Chat history not loaded, starting fresh local session', error);
         }
     };
 
@@ -156,25 +188,43 @@ export default function ChatScreen() {
                 ...(todayMood ? { mood_today: todayMood } : {}),
             });
 
+            const assistantText =
+                typeof response?.data?.response === 'string' && response.data.response.trim().length > 0
+                    ? response.data.response
+                    : "I'm here with you, but I got an empty reply from the server. Please try again once.";
+
             const assistantMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: response.data.response,
+                content: assistantText,
                 timestamp: new Date(),
                 feedback: null,
             };
 
             setMessages(prev => [...prev, assistantMessage]);
             setIsOffline(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error sending message:', error);
-            setIsOffline(true);
+            const statusCode = error?.response?.status;
+            const apiDetail = error?.response?.data?.detail;
+            const serverMessage = typeof apiDetail === 'string' ? apiDetail : '';
+            const isNetworkIssue = !statusCode;
+
+            setIsOffline(isNetworkIssue);
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: messages.length === 0
-                    ? "I can't reach the server right now — you might be offline. Your last conversation is saved. Try again when you're back online."
-                    : "I'm having a little trouble connecting. I'm still here — try again in a moment.",
+                content: isNetworkIssue
+                    ? (
+                        messages.length === 0
+                            ? "I can't reach the server right now - you might be offline. Your last conversation is saved. Try again when you're back online."
+                            : "I'm having trouble connecting to the network right now. Please try again in a moment."
+                    )
+                    : (
+                        statusCode === 429
+                            ? "You're sending messages too quickly right now. Please wait a few seconds and try again."
+                            : `The companion server returned an error${statusCode ? ` (${statusCode})` : ''}${serverMessage ? `: ${serverMessage}` : '.'} Please try again shortly.`
+                    ),
                 timestamp: new Date(),
                 feedback: null,
             };

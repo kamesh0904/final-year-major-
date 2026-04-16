@@ -22,6 +22,7 @@ import MomentumStepsScreen from './src/screens/MomentumStepsScreen';
 // Feature screens
 import WeeklyReportScreen from './src/screens/WeeklyReportScreen';
 import AchievementsScreen from './src/screens/AchievementsScreen';
+import DailyReportScreen from './src/screens/DailyReportScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -35,26 +36,27 @@ export default function App() {
                     screenOptions={{ headerShown: false }}
                 >
                     {/* Auth flow */}
-                    <Stack.Screen name="Landing"       component={LandingScreen} />
-                    <Stack.Screen name="Login"         component={LoginScreen} />
-                    <Stack.Screen name="Signup"        component={SignupScreen} />
+                    <Stack.Screen name="Landing" component={LandingScreen} />
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen name="Signup" component={SignupScreen} />
                     <Stack.Screen name="Questionnaire" component={QuestionnaireScreen} />
                     {/* Main tab navigator */}
-                    <Stack.Screen name="Main"          component={SwipeTabNavigator} />
+                    <Stack.Screen name="Main" component={SwipeTabNavigator} />
                     {/* Games */}
-                    <Stack.Screen name="EmotionMatch"   component={EmotionMatchScreen} />
-                    <Stack.Screen name="ChromaticRush"  component={ChromaticRushScreen} />
-                    <Stack.Screen name="BreathSync"     component={BreathSyncScreen} />
-                    <Stack.Screen name="ImpulseGuard"   component={ImpulseGuardScreen} />
+                    <Stack.Screen name="EmotionMatch" component={EmotionMatchScreen} />
+                    <Stack.Screen name="ChromaticRush" component={ChromaticRushScreen} />
+                    <Stack.Screen name="BreathSync" component={BreathSyncScreen} />
+                    <Stack.Screen name="ImpulseGuard" component={ImpulseGuardScreen} />
                     <Stack.Screen name="PatternRelease" component={PatternReleaseScreen} />
-                    <Stack.Screen name="OrderShift"     component={OrderShiftScreen} />
-                    <Stack.Screen name="SensoryFlow"    component={SensoryFlowScreen} />
-                    <Stack.Screen name="CalmPath"       component={CalmPathScreen} />
-                    <Stack.Screen name="LightBuilder"   component={LightBuilderScreen} />
-                    <Stack.Screen name="MomentumSteps"  component={MomentumStepsScreen} />
+                    <Stack.Screen name="OrderShift" component={OrderShiftScreen} />
+                    <Stack.Screen name="SensoryFlow" component={SensoryFlowScreen} />
+                    <Stack.Screen name="CalmPath" component={CalmPathScreen} />
+                    <Stack.Screen name="LightBuilder" component={LightBuilderScreen} />
+                    <Stack.Screen name="MomentumSteps" component={MomentumStepsScreen} />
                     {/* Feature screens */}
-                    <Stack.Screen name="WeeklyReport"   component={WeeklyReportScreen} />
-                    <Stack.Screen name="Achievements"   component={AchievementsScreen} />
+                    <Stack.Screen name="WeeklyReport" component={WeeklyReportScreen} />
+                    <Stack.Screen name="Achievements" component={AchievementsScreen} />
+                    <Stack.Screen name="DailyReport" component={DailyReportScreen} />
                 </Stack.Navigator>
             </NavigationContainer>
         </AuthProvider>

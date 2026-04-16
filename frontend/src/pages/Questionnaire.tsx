@@ -57,6 +57,7 @@ export default function Questionnaire() {
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState<{ primaryProfile: string; scores: Record<string, number> } | null>(null);
 
   const question = QUESTIONS[current];
   const progress = ((current + 1) / QUESTIONS.length) * 100;
@@ -131,8 +132,8 @@ export default function Questionnaire() {
       localStorage.setItem("hasCompletedQuestionnaire", "true");
       localStorage.setItem("activeProfile", primaryProfile);
 
-      // 7. Hard Redirect
-      window.location.href = "/dashboard";
+      // 7. Show Result
+      setResult({ primaryProfile, scores });
 
     } catch (error) {
       console.error("Submission Error:", error);
@@ -142,6 +143,45 @@ export default function Questionnaire() {
       setIsSubmitting(false);
     }
   };
+
+  if (result) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 relative">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 right-1/3 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
+        </div>
+
+        <div className="w-full max-w-2xl relative z-10 card-calm animate-fade-in relative overflow-hidden text-center py-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Assessment Complete ✨</h2>
+            <div className="mb-8 px-4">
+                <p className="text-xl text-gray-200 mb-6">Primary Profile: <span className="text-purple-400 font-bold">{result.primaryProfile}</span></p>
+                
+                <div className="bg-white/5 rounded-2xl p-6 inline-block text-left w-full max-w-md mx-auto border border-white/10">
+                    <h3 className="text-lg text-white font-medium border-b border-white/10 pb-3 mb-4">Scores Breakdown</h3>
+                    {Object.entries(result.scores).map(([domain, score]) => (
+                        <div key={domain} className="flex justify-between items-center text-gray-300 py-2">
+                            <span className="text-base">{domain}</span>
+                            <span className="font-bold text-white text-lg bg-white/10 px-3 py-1 rounded-lg">{score}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            
+            <p className="text-gray-300 mb-8 text-lg px-4">Your experience is now personalised. Welcome to NeuroNest.</p>
+            
+            <div className="px-4">
+                <button
+                onClick={() => window.location.href = "/dashboard"}
+                className="btn-calm px-8 py-4 w-full sm:w-auto text-lg hover-lift shadow-lg shadow-purple-500/20"
+                >
+                Start My Journey
+                </button>
+            </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative">

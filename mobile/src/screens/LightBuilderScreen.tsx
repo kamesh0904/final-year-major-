@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, Animated,
-    Dimensions, TextInput, ScrollView, Modal,
+    Dimensions, TextInput, ScrollView, Modal, Platform, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,12 +26,12 @@ Notifications.setNotificationHandler({
 
 // ─── Profile → recommended games  (mirrors backend game_router.py) ────────────
 const GAMES_BY_PROFILE: Record<string, string[]> = {
-    ADHD:       ['Chromatic Rush', 'Impulse Guard'],
-    OCD:        ['Pattern Release', 'Order Shift'],
-    ASD:        ['Sensory Flow', 'Emotion Match'],
-    Anxiety:    ['Breath Sync', 'Calm Path'],
+    ADHD: ['Chromatic Rush', 'Impulse Guard'],
+    OCD: ['Pattern Release', 'Order Shift'],
+    ASD: ['Sensory Flow', 'Emotion Match'],
+    Anxiety: ['Breath Sync', 'Calm Path'],
     Depression: ['Light Builder', 'Momentum Steps'],
-    General:    ['Calm Path', 'Breath Sync'],
+    General: ['Calm Path', 'Breath Sync'],
 };
 
 const PROFILE_EMOJI: Record<string, string> = {
@@ -40,17 +40,17 @@ const PROFILE_EMOJI: Record<string, string> = {
 
 // ─── Buildings (11 total) ─────────────────────────────────────────────────────
 const ELEMENTS = [
-    { id: 1,  name: 'Street Lamp', cost: 50,    passive: 1,   icon: '🪔', color: '#FDE68A', glow: 'rgba(253,224,71,0.6)'  },
-    { id: 2,  name: 'Cottage',     cost: 120,   passive: 2,   icon: '🏡', color: '#FCA5A5', glow: 'rgba(253,164,175,0.5)' },
-    { id: 3,  name: 'Café',        cost: 300,   passive: 4,   icon: '☕', color: '#FED7AA', glow: 'rgba(253,186,116,0.5)' },
-    { id: 4,  name: 'Library',     cost: 600,   passive: 6,   icon: '📚', color: '#67E8F9', glow: 'rgba(103,232,249,0.5)' },
-    { id: 5,  name: 'Park',        cost: 1000,  passive: 10,  icon: '🎵', color: '#6EE7B7', glow: 'rgba(110,231,183,0.5)' },
-    { id: 6,  name: 'Town Hall',   cost: 2000,  passive: 20,  icon: '🏛️', color: '#DDD6FE', glow: 'rgba(216,180,254,0.6)' },
-    { id: 7,  name: 'Bakery',      cost: 4000,  passive: 35,  icon: '🥐', color: '#FDE68A', glow: 'rgba(251,191,36,0.5)'  },
-    { id: 8,  name: 'Hospital',    cost: 7000,  passive: 55,  icon: '🏥', color: '#6EE7B7', glow: 'rgba(52,211,153,0.5)'  },
-    { id: 9,  name: 'School',      cost: 12000, passive: 80,  icon: '🏫', color: '#93C5FD', glow: 'rgba(147,197,253,0.5)' },
-    { id: 10, name: 'Market',      cost: 20000, passive: 110, icon: '🏪', color: '#FCA5A5', glow: 'rgba(249,115,22,0.4)'  },
-    { id: 11, name: 'Cathedral',   cost: 35000, passive: 150, icon: '⛪', color: '#E9D5FF', glow: 'rgba(167,139,250,0.6)' },
+    { id: 1, name: 'Street Lamp', cost: 50, passive: 1, icon: '🪔', color: '#FDE68A', glow: 'rgba(253,224,71,0.6)' },
+    { id: 2, name: 'Cottage', cost: 120, passive: 2, icon: '🏡', color: '#FCA5A5', glow: 'rgba(253,164,175,0.5)' },
+    { id: 3, name: 'Café', cost: 300, passive: 4, icon: '☕', color: '#FED7AA', glow: 'rgba(253,186,116,0.5)' },
+    { id: 4, name: 'Library', cost: 600, passive: 6, icon: '📚', color: '#67E8F9', glow: 'rgba(103,232,249,0.5)' },
+    { id: 5, name: 'Park', cost: 1000, passive: 10, icon: '🎵', color: '#6EE7B7', glow: 'rgba(110,231,183,0.5)' },
+    { id: 6, name: 'Town Hall', cost: 2000, passive: 20, icon: '🏛️', color: '#DDD6FE', glow: 'rgba(216,180,254,0.6)' },
+    { id: 7, name: 'Bakery', cost: 4000, passive: 35, icon: '🥐', color: '#FDE68A', glow: 'rgba(251,191,36,0.5)' },
+    { id: 8, name: 'Hospital', cost: 7000, passive: 55, icon: '🏥', color: '#6EE7B7', glow: 'rgba(52,211,153,0.5)' },
+    { id: 9, name: 'School', cost: 12000, passive: 80, icon: '🏫', color: '#93C5FD', glow: 'rgba(147,197,253,0.5)' },
+    { id: 10, name: 'Market', cost: 20000, passive: 110, icon: '🏪', color: '#FCA5A5', glow: 'rgba(249,115,22,0.4)' },
+    { id: 11, name: 'Cathedral', cost: 35000, passive: 150, icon: '⛪', color: '#E9D5FF', glow: 'rgba(167,139,250,0.6)' },
 ];
 
 type QuestId = 'daily_login' | 'play_profile_game' | 'breath_sync' | 'companion_chat' | 'personal_tasks';
@@ -63,7 +63,12 @@ interface Quest {
     completed: boolean;
     progress?: string;
 }
-type PersonalTask = { id: number; text: string; completed: boolean };
+type PersonalTask = { id: number; text: string; completed: boolean; dueTime?: string; notifId?: string };
+
+// Points scale: 1st=100, 2nd=150, 3rd=200, 4th=250, 5th=300 (max 5 rewarded)
+const TASK_POINTS = [100, 150, 200, 250, 300];
+const TASKS_STORAGE_KEY = 'lumina_tasks_v2';
+const TASKS_DATE_KEY = 'lumina_tasks_date';
 
 const getSkyColors = (pct: number): readonly [string, string, string] => {
     if (pct < 20) return ['#0F0726', '#1E0B3E', '#160B35'] as const;
@@ -77,15 +82,15 @@ const TODAY = new Date().toISOString().slice(0, 10);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildQuests(profile: string): Quest[] {
-    const games    = GAMES_BY_PROFILE[profile] ?? GAMES_BY_PROFILE['General'];
-    const emoji    = PROFILE_EMOJI[profile]    ?? '🎮';
+    const games = GAMES_BY_PROFILE[profile] ?? GAMES_BY_PROFILE['General'];
+    const emoji = PROFILE_EMOJI[profile] ?? '🎮';
     const gameList = games.join(' / ');
     return [
-        { id: 'daily_login',     icon: '📅', title: 'Daily Login',          desc: 'Open NeuroNest today',                      reward: 50,  completed: false },
-        { id: 'play_profile_game',icon: emoji, title: `Play ${profile} Game`,desc: `Play ${gameList} for 2+ minutes`,            reward: 100, completed: false, progress: '0:00 / 2:00' },
-        { id: 'breath_sync',     icon: '🫁', title: 'Breath Sync Session',  desc: 'Complete a Breath Sync session',             reward: 10,  completed: false },
-        { id: 'companion_chat',  icon: '💬', title: 'Talk to Companion',    desc: 'Send a message to your AI companion',        reward: 20,  completed: false },
-        { id: 'personal_tasks',  icon: '✅', title: 'Complete a Task',      desc: 'Finish a personal task (+100 each)',         reward: 100, completed: false },
+        { id: 'daily_login', icon: '📅', title: 'Daily Login', desc: 'Open NeuroNest today', reward: 50, completed: false },
+        { id: 'play_profile_game', icon: emoji, title: `Play ${profile} Game`, desc: `Play ${gameList} for 2+ minutes`, reward: 100, completed: false, progress: '0:00 / 2:00' },
+        { id: 'breath_sync', icon: '🫁', title: 'Breath Sync Session', desc: 'Complete a Breath Sync session', reward: 10, completed: false },
+        { id: 'companion_chat', icon: '💬', title: 'Talk to Companion', desc: 'Send a message to your AI companion', reward: 20, completed: false },
+        { id: 'personal_tasks', icon: '✅', title: 'Complete a Task', desc: 'Finish a personal task (+100 each)', reward: 100, completed: false },
     ];
 }
 
@@ -93,29 +98,34 @@ function buildQuests(profile: string): Quest[] {
 export default function LightBuilderScreen({ navigation }: any) {
     const { user } = useAuth();
 
-    const [energy, setEnergy]             = useState(0);
-    const [unlockedIds, setUnlockedIds]   = useState<number[]>([]);
-    const [passiveRate, setPassiveRate]   = useState(0);
-    const [isWon, setIsWon]               = useState(false);
-    const [userProfile, setUserProfile]   = useState('General');
-    const [quests, setQuests]             = useState<Quest[]>(buildQuests('General'));
+    const [energy, setEnergy] = useState(0);
+    const [unlockedIds, setUnlockedIds] = useState<number[]>([]);
+    const [passiveRate, setPassiveRate] = useState(0);
+    const [isWon, setIsWon] = useState(false);
+    const [userProfile, setUserProfile] = useState('General');
+    const [quests, setQuests] = useState<Quest[]>(buildQuests('General'));
     const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
-    const [taskInput, setTaskInput]       = useState('');
+    const [taskInput, setTaskInput] = useState('');
+    const [taskDueHour, setTaskDueHour] = useState('');
+    const [taskDueMin, setTaskDueMin] = useState('');
+    const [showTimeInput, setShowTimeInput] = useState(false);
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [clickEffects, setClickEffects] = useState<{ id: number; val: number; label: string }[]>([]);
     const [notifGranted, setNotifGranted] = useState(false);
+    const [rewardedCount, setRewardedCount] = useState(0);
 
-    const sunScale   = useRef(new Animated.Value(1)).current;
+    const sunScale = useRef(new Animated.Value(1)).current;
     const winOpacity = useRef(new Animated.Value(0)).current;
 
-    const progress        = (unlockedIds.length / ELEMENTS.length) * 100;
-    const skyColors       = getSkyColors(progress);
+    const progress = (unlockedIds.length / ELEMENTS.length) * 100;
+    const skyColors = getSkyColors(progress);
     const completedQuests = quests.filter(q => q.completed).length;
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     useEffect(() => {
         requestNotifPermission().then(g => setNotifGranted(g));
         loadProfileAndCheckQuests();
+        loadPersistedTasks();
     }, [user?.id]);
 
     // ─── Passive income ───────────────────────────────────────────────────────
@@ -178,7 +188,7 @@ export default function LightBuilderScreen({ navigation }: any) {
                     .eq('id', user.id)
                     .single();
                 if (data?.primary_profile) profile = data.primary_profile;
-            } catch (_) {}
+            } catch (_) { }
         }
         setUserProfile(profile);
         const fresh = buildQuests(profile);
@@ -220,15 +230,15 @@ export default function LightBuilderScreen({ navigation }: any) {
             const gameQ = updated.find(q => q.id === 'play_profile_game')!;
             if (sessions && sessions.length > 0) {
                 const maxDur = Math.max(...sessions.map(s => s.duration_seconds ?? 0));
-                const mins   = Math.floor(maxDur / 60);
-                const secs   = maxDur % 60;
+                const mins = Math.floor(maxDur / 60);
+                const secs = maxDur % 60;
                 gameQ.progress = `${mins}:${String(secs).padStart(2, '0')} / 2:00`;
                 if (maxDur >= 120 && !gameQ.completed) {
                     gameQ.completed = true;
                     gained += gameQ.reward;
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
 
         // 3. Breath Sync today
         try {
@@ -244,7 +254,7 @@ export default function LightBuilderScreen({ navigation }: any) {
                 bsQ.completed = true;
                 gained += bsQ.reward;
             }
-        } catch (_) {}
+        } catch (_) { }
 
         // 4. Companion chat today
         try {
@@ -260,9 +270,34 @@ export default function LightBuilderScreen({ navigation }: any) {
                 chatQ.completed = true;
                 gained += chatQ.reward;
             }
-        } catch (_) {}
+        } catch (_) { }
 
         return { updated, gained };
+    };
+
+    // ─── Persist tasks to AsyncStorage ───────────────────────────────────────
+    const saveTasksToStorage = async (tasks: PersonalTask[], rewarded: number) => {
+        await AsyncStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+        await AsyncStorage.setItem(TASKS_DATE_KEY, JSON.stringify({ date: TODAY, rewarded }));
+    };
+
+    // ─── Load persisted tasks (reset if new day) ──────────────────────────────
+    const loadPersistedTasks = async () => {
+        try {
+            const dateRaw = await AsyncStorage.getItem(TASKS_DATE_KEY);
+            const tasksRaw = await AsyncStorage.getItem(TASKS_STORAGE_KEY);
+            if (dateRaw && tasksRaw) {
+                const { date, rewarded } = JSON.parse(dateRaw);
+                if (date === TODAY) {
+                    setPersonalTasks(JSON.parse(tasksRaw));
+                    setRewardedCount(rewarded ?? 0);
+                    return;
+                }
+            }
+            // New day — clear tasks
+            await AsyncStorage.removeItem(TASKS_STORAGE_KEY);
+            await AsyncStorage.removeItem(TASKS_DATE_KEY);
+        } catch (_) { }
     };
 
     // ─── Award lumens with floating label ────────────────────────────────────
@@ -273,26 +308,89 @@ export default function LightBuilderScreen({ navigation }: any) {
         setTimeout(() => setClickEffects(prev => prev.filter(x => x.id !== id)), 2200);
     };
 
-    // ─── Complete personal task ───────────────────────────────────────────────
+    // ─── Complete personal task (escalating points, max 5 rewarded) ──────────
     const completePersonalTask = (taskId: number) => {
-        let gained = 0;
-        setPersonalTasks(prev => prev.map(t => {
-            if (t.id === taskId && !t.completed) { gained = 100; return { ...t, completed: true }; }
-            return t;
-        }));
-        if (gained > 0) {
-            awardLumens(gained, '+100⚡ Task Done!');
-            setQuests(prev => prev.map(q =>
-                q.id === 'personal_tasks' ? { ...q, completed: true } : q
-            ));
+        setPersonalTasks(prev => {
+            const updated = prev.map(t => t.id === taskId && !t.completed ? { ...t, completed: true } : t);
+            const completedNow = updated.find(t => t.id === taskId);
+            if (completedNow?.completed && !prev.find(t => t.id === taskId)?.completed) {
+                // Count how many were already rewarded
+                setRewardedCount(rc => {
+                    if (rc < 5) {
+                        const pts = TASK_POINTS[rc];
+                        awardLumens(pts, `+${pts}⚡ Task ${rc + 1} Done!`);
+                        const newRc = rc + 1;
+                        saveTasksToStorage(updated, newRc);
+                        if (newRc >= 1) {
+                            setQuests(q => q.map(quest =>
+                                quest.id === 'personal_tasks' ? { ...quest, completed: true } : quest
+                            ));
+                        }
+                        return newRc;
+                    }
+                    saveTasksToStorage(updated, rc);
+                    return rc;
+                });
+            }
+            return updated;
+        });
+    };
+
+    // ─── Schedule a due-time notification for a task ──────────────────────────
+    const scheduleTaskNotif = async (taskText: string, hour: number, min: number): Promise<string | undefined> => {
+        if (!notifGranted) return undefined;
+        try {
+            const now = new Date();
+            const due = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, min, 0);
+            if (due <= now) return undefined; // time already passed today
+            const seconds = Math.floor((due.getTime() - now.getTime()) / 1000);
+            const id = await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: '⏰ Task Reminder',
+                    body: `Time to do: ${taskText}`,
+                    sound: true,
+                },
+                trigger: { seconds, repeats: false } as any,
+            });
+            return id;
+        } catch (_) {
+            return undefined;
         }
     };
 
-    const addPersonalTask = () => {
-        if (taskInput.trim() && personalTasks.length < 5) {
-            setPersonalTasks(prev => [...prev, { id: Date.now(), text: taskInput.trim(), completed: false }]);
-            setTaskInput('');
+    const addPersonalTask = async () => {
+        if (!taskInput.trim()) return;
+        let dueTime: string | undefined;
+        let notifId: string | undefined;
+
+        if (showTimeInput && taskDueHour && taskDueMin) {
+            const h = parseInt(taskDueHour, 10);
+            const m = parseInt(taskDueMin, 10);
+            if (!isNaN(h) && !isNaN(m) && h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+                dueTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                notifId = await scheduleTaskNotif(taskInput.trim(), h, m);
+            } else {
+                Alert.alert('Invalid time', 'Please enter a valid hour (0-23) and minute (0-59).');
+                return;
+            }
         }
+
+        const newTask: PersonalTask = {
+            id: Date.now(),
+            text: taskInput.trim(),
+            completed: false,
+            dueTime,
+            notifId,
+        };
+        setPersonalTasks(prev => {
+            const updated = [...prev, newTask];
+            saveTasksToStorage(updated, rewardedCount);
+            return updated;
+        });
+        setTaskInput('');
+        setTaskDueHour('');
+        setTaskDueMin('');
+        setShowTimeInput(false);
     };
 
     // ─── Unlock building ──────────────────────────────────────────────────────
@@ -315,7 +413,7 @@ export default function LightBuilderScreen({ navigation }: any) {
             {/* HUD */}
             <View style={styles.hud}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-                    <Ionicons name="close" size={22} color="rgba(255,255,255,0.7)" />
+                    <Ionicons name="close" size={20} color="rgba(255,255,255,0.8)" />
                 </TouchableOpacity>
                 <View style={styles.centerHud}>
                     <Text style={styles.hudTitle}>✨ Light Builder</Text>
@@ -329,13 +427,16 @@ export default function LightBuilderScreen({ navigation }: any) {
             </View>
 
             {passiveRate > 0 && (
-                <Text style={styles.passiveTag}>+{passiveRate}/s passive income</Text>
+                <View style={styles.passiveRow}>
+                    <Ionicons name="trending-up" size={12} color="#6EE7B7" />
+                    <Text style={styles.passiveTag}>+{passiveRate}/s passive income</Text>
+                </View>
             )}
 
             {/* Quest Panel */}
             <View style={styles.questPanel}>
                 <Text style={styles.questPanelTitle}>
-                    {userProfile} Daily Quests — earn Lumens by using NeuroNest
+                    {userProfile} Daily Quests
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.questRow}>
                     {quests.map(q => (
@@ -347,9 +448,11 @@ export default function LightBuilderScreen({ navigation }: any) {
                             {q.progress && !q.completed && (
                                 <Text style={styles.questProgress}>{q.progress}</Text>
                             )}
-                            <Text style={[styles.questReward, q.completed && styles.questRewardDone]}>
-                                {q.completed ? '✓ Done' : `+${q.reward}⚡`}
-                            </Text>
+                            <View style={[styles.questRewardPill, q.completed && styles.questRewardPillDone]}>
+                                <Text style={[styles.questReward, q.completed && styles.questRewardDone]}>
+                                    {q.completed ? '✓ Done' : `+${q.reward}⚡`}
+                                </Text>
+                            </View>
                             {!q.completed && q.id === 'personal_tasks' && (
                                 <TouchableOpacity onPress={() => setShowTaskModal(true)} style={styles.questBtn}>
                                     <Text style={styles.questBtnText}>Add Task</Text>
@@ -374,7 +477,7 @@ export default function LightBuilderScreen({ navigation }: any) {
                     ))}
                 </ScrollView>
                 <View style={styles.overallBar}>
-                    <View style={[styles.overallFill, { width: `${(completedQuests / quests.length) * 100}%` }]} />
+                    <LinearGradient colors={['#FBBF24', '#F59E0B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.overallFill, { width: `${(completedQuests / quests.length) * 100}%` }]} />
                 </View>
             </View>
 
@@ -399,7 +502,7 @@ export default function LightBuilderScreen({ navigation }: any) {
             <ScrollView style={styles.buildingsScroll} contentContainerStyle={styles.buildingsGrid}>
                 {ELEMENTS.map(el => {
                     const isUnlocked = unlockedIds.includes(el.id);
-                    const canAfford  = energy >= el.cost;
+                    const canAfford = energy >= el.cost;
                     return (
                         <TouchableOpacity
                             key={el.id}
@@ -429,43 +532,103 @@ export default function LightBuilderScreen({ navigation }: any) {
             <Modal visible={showTaskModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalCard}>
-                        <Text style={styles.modalTitle}>📝 Personal Tasks</Text>
-                        <Text style={styles.modalSub}>Tap a task to complete it and earn +100 Lumens each.</Text>
-                        <ScrollView style={{ maxHeight: 150, marginBottom: 12 }}>
-                            {personalTasks.map(t => (
-                                <TouchableOpacity
-                                    key={t.id}
-                                    onPress={() => completePersonalTask(t.id)}
-                                    disabled={t.completed}
-                                    style={[styles.taskRow, t.completed && styles.taskRowDone]}
-                                >
-                                    <View style={[styles.taskCircle, t.completed && styles.taskCircleDone]}>
-                                        {t.completed && <Ionicons name="checkmark" size={10} color="white" />}
-                                    </View>
-                                    <Text style={[styles.taskText, t.completed && styles.taskTextDone]} numberOfLines={1}>{t.text}</Text>
-                                    {!t.completed && <Text style={styles.taskHint}>tap ✓</Text>}
-                                </TouchableOpacity>
-                            ))}
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>📝 Personal Tasks</Text>
+                            <View style={styles.rewardBadge}>
+                                <Text style={styles.rewardBadgeText}>{rewardedCount}/5 rewarded</Text>
+                            </View>
+                        </View>
+                        <Text style={styles.modalSub}>
+                            Complete tasks to earn Lumens. Points increase with each task:{'\n'}
+                            1st=100⚡ · 2nd=150⚡ · 3rd=200⚡ · 4th=250⚡ · 5th=300⚡
+                        </Text>
+
+                        <ScrollView style={{ maxHeight: 200, marginBottom: 12 }}>
+                            {personalTasks.map((t, idx) => {
+                                const completedBefore = personalTasks.slice(0, idx).filter(x => x.completed).length;
+                                const pts = completedBefore < 5 ? TASK_POINTS[completedBefore] : 0;
+                                return (
+                                    <TouchableOpacity
+                                        key={t.id}
+                                        onPress={() => completePersonalTask(t.id)}
+                                        disabled={t.completed}
+                                        style={[styles.taskRow, t.completed && styles.taskRowDone]}
+                                    >
+                                        <View style={[styles.taskCircle, t.completed && styles.taskCircleDone]}>
+                                            {t.completed && <Ionicons name="checkmark" size={12} color="white" />}
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.taskText, t.completed && styles.taskTextDone]} numberOfLines={1}>
+                                                {t.text}
+                                            </Text>
+                                            {t.dueTime && (
+                                                <Text style={styles.taskDueTime}>
+                                                    <Ionicons name="time-outline" size={11} color="#FBBF24" /> {t.dueTime}
+                                                </Text>
+                                            )}
+                                        </View>
+                                        {!t.completed && (
+                                            <Text style={styles.taskPts}>
+                                                {rewardedCount < 5 ? `+${pts}⚡` : '—'}
+                                            </Text>
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
                             {personalTasks.length === 0 && (
-                                <Text style={styles.emptyTasks}>No tasks yet. Add up to 5 below.</Text>
+                                <Text style={styles.emptyTasks}>No tasks yet. Add some below.</Text>
                             )}
                         </ScrollView>
-                        {personalTasks.length < 5 && (
-                            <View style={styles.addTaskRow}>
+
+                        {/* Add task input */}
+                        <View style={styles.addTaskRow}>
+                            <TextInput
+                                style={styles.taskInput}
+                                value={taskInput}
+                                onChangeText={setTaskInput}
+                                placeholder="Add a task..."
+                                placeholderTextColor="#6B7280"
+                                returnKeyType="done"
+                            />
+                            <TouchableOpacity
+                                onPress={() => setShowTimeInput(v => !v)}
+                                style={[styles.timeToggleBtn, showTimeInput && styles.timeToggleBtnActive]}
+                            >
+                                <Ionicons name="time-outline" size={18} color={showTimeInput ? '#FBBF24' : '#9CA3AF'} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={addPersonalTask} style={styles.addBtn}>
+                                <Ionicons name="add" size={20} color="white" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Optional time picker */}
+                        {showTimeInput && (
+                            <View style={styles.timeRow}>
+                                <Ionicons name="alarm-outline" size={16} color="#FBBF24" />
+                                <Text style={styles.timeLabel}>Due at</Text>
                                 <TextInput
-                                    style={styles.taskInput}
-                                    value={taskInput}
-                                    onChangeText={setTaskInput}
-                                    placeholder="Add a task..."
-                                    placeholderTextColor="#6B7280"
-                                    onSubmitEditing={addPersonalTask}
-                                    returnKeyType="done"
+                                    style={styles.timeInput}
+                                    value={taskDueHour}
+                                    onChangeText={setTaskDueHour}
+                                    placeholder="HH"
+                                    placeholderTextColor="#4B5563"
+                                    keyboardType="number-pad"
+                                    maxLength={2}
                                 />
-                                <TouchableOpacity onPress={addPersonalTask} style={styles.addBtn}>
-                                    <Ionicons name="add" size={20} color="white" />
-                                </TouchableOpacity>
+                                <Text style={styles.timeColon}>:</Text>
+                                <TextInput
+                                    style={styles.timeInput}
+                                    value={taskDueMin}
+                                    onChangeText={setTaskDueMin}
+                                    placeholder="MM"
+                                    placeholderTextColor="#4B5563"
+                                    keyboardType="number-pad"
+                                    maxLength={2}
+                                />
+                                <Text style={styles.timeHint}>24h · notif when due</Text>
                             </View>
                         )}
+
                         <TouchableOpacity onPress={() => setShowTaskModal(false)} style={styles.modalClose}>
                             <Text style={styles.modalCloseText}>Done</Text>
                         </TouchableOpacity>
@@ -492,70 +655,85 @@ export default function LightBuilderScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    hud: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 6, zIndex: 20 },
-    closeBtn: { width: 36, height: 36, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+    hud: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 10, zIndex: 20 },
+    closeBtn: { width: 40, height: 40, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
     centerHud: { alignItems: 'center' },
-    hudTitle: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-    hudSub: { color: 'rgba(255,255,255,0.5)', fontSize: 10, marginTop: 1 },
-    energyPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 4, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)' },
+    hudTitle: { color: 'white', fontWeight: '800', fontSize: 18, letterSpacing: 0.3 },
+    hudSub: { color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2, fontWeight: '500' },
+    energyPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 24, paddingHorizontal: 14, paddingVertical: 8, gap: 6, borderWidth: 1, borderColor: 'rgba(251,191,36,0.5)' },
     energyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FBBF24' },
-    energyNum: { color: 'white', fontWeight: 'bold', fontSize: 18 },
+    energyNum: { color: 'white', fontWeight: '800', fontSize: 20 },
     lumLabel: { fontSize: 14 },
-    passiveTag: { textAlign: 'center', color: '#6EE7B7', fontSize: 10, fontWeight: '600', marginBottom: 4, zIndex: 20 },
+    passiveRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 6, zIndex: 20 },
+    passiveTag: { color: '#6EE7B7', fontSize: 12, fontWeight: '700' },
     // Quests
-    questPanel: { zIndex: 20, paddingHorizontal: 10, marginBottom: 4 },
-    questPanelTitle: { color: 'rgba(255,255,255,0.4)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, paddingLeft: 4 },
-    questRow: { gap: 8, paddingRight: 8 },
-    questCard: { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 14, padding: 10, width: 120, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', alignItems: 'center', gap: 3 },
-    questCardDone: { backgroundColor: 'rgba(110,231,183,0.08)', borderColor: 'rgba(110,231,183,0.3)' },
-    questIcon: { fontSize: 22 },
-    questTitle: { color: 'white', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+    questPanel: { zIndex: 20, paddingHorizontal: 14, marginBottom: 8 },
+    questPanelTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, paddingLeft: 2 },
+    questRow: { gap: 10, paddingRight: 10 },
+    questCard: { backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 14, width: 140, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', gap: 6 },
+    questCardDone: { backgroundColor: 'rgba(110,231,183,0.12)', borderColor: 'rgba(110,231,183,0.4)' },
+    questIcon: { fontSize: 26 },
+    questTitle: { color: 'white', fontSize: 12, fontWeight: '700', textAlign: 'center' },
     questTitleDone: { color: '#6EE7B7' },
-    questProgress: { color: '#FBBF24', fontSize: 10 },
-    questReward: { color: '#FBBF24', fontSize: 11, fontWeight: '600' },
+    questProgress: { color: '#FBBF24', fontSize: 11, fontWeight: '600' },
+    questRewardPill: { backgroundColor: 'rgba(251,191,36,0.15)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)' },
+    questRewardPillDone: { backgroundColor: 'rgba(110,231,183,0.15)', borderColor: 'rgba(110,231,183,0.3)' },
+    questReward: { color: '#FBBF24', fontSize: 12, fontWeight: '800' },
     questRewardDone: { color: '#6EE7B7' },
-    questBtn: { backgroundColor: 'rgba(139,92,246,0.3)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(139,92,246,0.4)', marginTop: 2 },
-    questBtnText: { color: '#DDD6FE', fontSize: 10, fontWeight: '700' },
-    overallBar: { height: 4, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
-    overallFill: { height: '100%', backgroundColor: '#FBBF24', borderRadius: 2 },
+    questBtn: { backgroundColor: 'rgba(139,92,246,0.3)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(139,92,246,0.5)', marginTop: 2 },
+    questBtnText: { color: '#DDD6FE', fontSize: 11, fontWeight: '700' },
+    overallBar: { height: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, marginTop: 10, overflow: 'hidden' },
+    overallFill: { height: '100%', borderRadius: 3 },
     // World
     worldMap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 },
     land: { position: 'absolute', bottom: 0, left: 0, right: 0 },
     sun: { position: 'absolute', alignSelf: 'center', left: width / 2 - 30 },
     // Award
     award: { position: 'absolute', top: height * 0.38, left: 0, right: 0, alignItems: 'center', zIndex: 50 },
-    awardText: { color: '#FDE68A', fontWeight: 'bold', fontSize: 20, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+    awardText: { color: '#FDE68A', fontWeight: 'bold', fontSize: 22, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 },
     // Buildings
     buildingsScroll: { flex: 1, zIndex: 10 },
-    buildingsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, paddingBottom: 16, gap: 7, justifyContent: 'center' },
-    building: { width: (width - 60) / 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', gap: 2 },
-    buildingIcon: { fontSize: 22 },
-    buildingName: { fontSize: 9, fontWeight: '700', textAlign: 'center' },
-    buildingPassive: { fontSize: 9, color: '#6EE7B7', fontWeight: '600' },
-    buildingCost: { fontSize: 9, fontWeight: '600' },
+    buildingsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, paddingBottom: 24, gap: 10, justifyContent: 'center' },
+    building: { width: (width - 56) / 3, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 20, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', gap: 5 },
+    buildingIcon: { fontSize: 28 },
+    buildingName: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
+    buildingPassive: { fontSize: 11, color: '#6EE7B7', fontWeight: '800' },
+    buildingCost: { fontSize: 11, fontWeight: '800' },
     // Modal
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-    modalCard: { backgroundColor: '#14101E', borderRadius: 24, padding: 22, width: '100%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-    modalTitle: { color: 'white', fontWeight: 'bold', fontSize: 18, marginBottom: 4 },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    modalCard: { backgroundColor: '#14101E', borderRadius: 28, padding: 24, width: '100%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+    modalTitle: { color: 'white', fontWeight: 'bold', fontSize: 20 },
+    rewardBadge: { backgroundColor: 'rgba(251,191,36,0.15)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)' },
+    rewardBadgeText: { color: '#FBBF24', fontSize: 12, fontWeight: '700' },
     modalSub: { color: '#9CA3AF', fontSize: 12, marginBottom: 14, lineHeight: 18 },
-    taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: 4, borderRadius: 10 },
+    taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 12 },
     taskRowDone: { backgroundColor: 'rgba(110,231,183,0.1)' },
-    taskCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#6B7280', justifyContent: 'center', alignItems: 'center' },
+    taskCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#6B7280', justifyContent: 'center', alignItems: 'center' },
     taskCircleDone: { backgroundColor: '#10B981', borderColor: '#10B981' },
-    taskText: { color: 'white', fontSize: 13, flex: 1 },
+    taskText: { color: 'white', fontSize: 14 },
     taskTextDone: { textDecorationLine: 'line-through', color: '#6EE7B7' },
-    taskHint: { color: '#4B5563', fontSize: 10 },
-    emptyTasks: { color: '#4B5563', fontSize: 13, textAlign: 'center', padding: 16 },
-    addTaskRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-    taskInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, color: 'white', fontSize: 14 },
-    addBtn: { backgroundColor: 'rgba(139,92,246,0.3)', borderRadius: 12, padding: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(139,92,246,0.4)' },
-    modalClose: { marginTop: 14, alignItems: 'center', paddingVertical: 12, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14 },
-    modalCloseText: { color: '#9CA3AF', fontWeight: '600', fontSize: 15 },
+    taskDueTime: { color: '#FBBF24', fontSize: 11, marginTop: 2 },
+    taskPts: { color: '#FBBF24', fontSize: 12, fontWeight: '700', minWidth: 40, textAlign: 'right' },
+    taskHint: { color: '#4B5563', fontSize: 11 },
+    emptyTasks: { color: '#4B5563', fontSize: 14, textAlign: 'center', padding: 20 },
+    addTaskRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    taskInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', borderRadius: 14, padding: 12, color: 'white', fontSize: 15 },
+    timeToggleBtn: { width: 44, height: 44, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    timeToggleBtnActive: { backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.4)' },
+    addBtn: { backgroundColor: 'rgba(139,92,246,0.35)', borderRadius: 14, padding: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(139,92,246,0.5)' },
+    timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(251,191,36,0.08)', borderRadius: 12, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(251,191,36,0.2)' },
+    timeLabel: { color: '#FBBF24', fontSize: 13, fontWeight: '600' },
+    timeInput: { width: 44, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: 6, color: 'white', fontSize: 15, textAlign: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+    timeColon: { color: '#FBBF24', fontSize: 18, fontWeight: 'bold' },
+    timeHint: { color: 'rgba(255,255,255,0.35)', fontSize: 11, flex: 1 },
+    modalClose: { marginTop: 16, alignItems: 'center', paddingVertical: 14, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 16 },
+    modalCloseText: { color: '#9CA3AF', fontWeight: '600', fontSize: 16 },
     // Win
-    winOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', zIndex: 60, padding: 32 },
-    winTitle: { color: 'white', fontSize: 28, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
-    winSub: { color: 'rgba(255,255,255,0.7)', fontSize: 15, textAlign: 'center', marginBottom: 32, lineHeight: 22 },
-    winBtn: { borderRadius: 24, overflow: 'hidden' },
-    winBtnGrad: { paddingHorizontal: 36, paddingVertical: 14 },
-    winBtnText: { color: '#78350F', fontWeight: 'bold', fontSize: 17 },
+    winOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', zIndex: 60, padding: 32 },
+    winTitle: { color: 'white', fontSize: 30, fontWeight: 'bold', textAlign: 'center', marginBottom: 12 },
+    winSub: { color: 'rgba(255,255,255,0.7)', fontSize: 16, textAlign: 'center', marginBottom: 36, lineHeight: 24 },
+    winBtn: { borderRadius: 28, overflow: 'hidden' },
+    winBtnGrad: { paddingHorizontal: 40, paddingVertical: 16 },
+    winBtnText: { color: '#78350F', fontWeight: 'bold', fontSize: 18 },
 });

@@ -16,8 +16,9 @@ def init_redis():
     """Initialize Redis client with environment variables"""
     global redis_client
     
-    redis_url = os.getenv("UPSTASH_REDIS_URL")
-    redis_token = os.getenv("UPSTASH_REDIS_TOKEN")
+    # Support both legacy and current Upstash variable names.
+    redis_url = os.getenv("UPSTASH_REDIS_URL") or os.getenv("UPSTASH_REDIS_REST_URL")
+    redis_token = os.getenv("UPSTASH_REDIS_TOKEN") or os.getenv("UPSTASH_REDIS_REST_TOKEN")
     
     if redis_url and redis_token:
         try:

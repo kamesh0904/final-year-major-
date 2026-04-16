@@ -16,6 +16,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MoodCheckInModal from './MoodCheckInModal';
+import {
+    createNeuroProfileResult,
+    loadNeuroProfileResult,
+    NeuroProfileResult,
+    saveNeuroProfileResult,
+} from '../utils/neuroProfile';
 
 const { width, height } = Dimensions.get('window');
 
@@ -55,53 +61,110 @@ const PROFILE_MAP: Record<string, string[]> = {
 };
 
 export default function HomeScreen({ navigation }: any) {
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
-    const [scores, setScores] = useState<Record<string, number>>({});
+    const [assessmentResult, setAssessmentResult] = useState<NeuroProfileResult | null>(null);
     const [recommendations, setRecommendations] = useState<string[]>(PROFILE_MAP["General"]);
     const [loading, setLoading] = useState(false);
     // Dashboard stats
-    const [streak, setStreak]           = useState(0);
-    const [todayMood, setTodayMood]     = useState<number | null>(null);
-    const [questsDone, setQuestsDone]   = useState(0);
-    const [gamesToday, setGamesToday]   = useState(0);
+    const [streak, setStreak] = useState(0);
+    const [todayMood, setTodayMood] = useState<number | null>(null);
+    const [questsDone, setQuestsDone] = useState(0);
+    const [gamesToday, setGamesToday] = useState(0);
 
     const username = user?.email?.split('@')[0] || 'Traveler';
     const TODAY = new Date().toISOString().slice(0, 10);
+    const profileScores = assessmentResult?.categoryScores ?? {};
+    const hasAssessment = Boolean(
+        assessmentResult?.questionnaireCompleted && assessmentResult?.primaryProfile
+    );
+    const rankedScores = Object.entries(profileScores).sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
+    const maxProfileScore = Math.max(1, ...Object.values(profileScores));
 
     useEffect(() => {
+        if (authLoading) return;
         loadData();
         loadDashboardStats();
-    }, []);
+    }, [authLoading, user?.id]);
 
     const loadData = async () => {
+        setLoading(true);
         try {
-            setScores({});
+            if (!user?.id) {
+                setAssessmentResult(null);
+                setRecommendations(PROFILE_MAP["General"]);
+                return;
+            }
+
+            const storedResult = await loadNeuroProfileResult(user.id);
+            let nextResult = storedResult;
+
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('primary_profile, secondary_profile, questionnaire_completed, updated_at, scores')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (error) {
+                console.log('Profile lookup falling back to local assessment cache:', error.message);
+            }
+
+            if (data) {
+                nextResult = createNeuroProfileResult({
+                    primaryProfile: data.primary_profile ?? storedResult?.primaryProfile,
+                    secondaryProfile: data.secondary_profile ?? storedResult?.secondaryProfile,
+                    categoryScores: data.scores ?? storedResult?.categoryScores,
+                    questionnaireCompleted: data.questionnaire_completed ?? storedResult?.questionnaireCompleted,
+                    updatedAt: data.updated_at ?? storedResult?.updatedAt ?? null,
+                });
+            }
+
+            if (nextResult?.questionnaireCompleted && nextResult.primaryProfile) {
+                setAssessmentResult(nextResult);
+                calculateRecommendations(nextResult.categoryScores);
+                await saveNeuroProfileResult(user.id, nextResult);
+            } else {
+                setAssessmentResult(null);
+                setRecommendations(PROFILE_MAP["General"]);
+            }
         } catch (error) {
             console.error('Error loading data:', error);
+            setAssessmentResult(null);
+            setRecommendations(PROFILE_MAP["General"]);
         } finally {
             setLoading(false);
         }
     };
 
     const loadDashboardStats = async () => {
+        if (!user?.id) {
+            setStreak(0);
+            setTodayMood(null);
+            setQuestsDone(0);
+            setGamesToday(0);
+            return;
+        }
+
         // Login streak
         let streakCount = 0;
         for (let i = 0; i < 60; i++) {
             const d = new Date(); d.setDate(d.getDate() - i);
-            const key = `lumina_login_${d.toISOString().slice(0,10)}`;
+            const key = `lumina_login_${d.toISOString().slice(0, 10)}`;
             const v = await AsyncStorage.getItem(key);
             if (v) streakCount++; else break;
         }
         setStreak(streakCount);
 
-        // Today's mood
-        const moodRaw = await AsyncStorage.getItem(`mood_checkin_${TODAY}`);
-        if (moodRaw) setTodayMood(parseInt(moodRaw, 10));
+        // Today's mood (user-scoped key)
+        const moodRaw = await AsyncStorage.getItem(`mood_checkin_${user.id}_${TODAY}`);
+        if (moodRaw) {
+            setTodayMood(parseInt(moodRaw, 10));
+        } else {
+            setTodayMood(null);
+        }
 
         // Quests done today
         let done = 0;
-        const questIds = ['daily_login', 'play_profile_game', 'breath_sync', 'companion_chat', 'personal_tasks'];
         // Simple: count how many AsyncStorage quest flags are set
         const loginDone = await AsyncStorage.getItem(`lumina_login_${TODAY}`);
         if (loginDone) done++;
@@ -109,16 +172,14 @@ export default function HomeScreen({ navigation }: any) {
         setQuestsDone(done);
 
         // Games played today
-        if (user?.id) {
-            try {
-                const { count } = await supabase
-                    .from('game_sessions')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('user_id', user.id)
-                    .gte('created_at', `${TODAY}T00:00:00`);
-                setGamesToday(count ?? 0);
-            } catch (_) {}
-        }
+        try {
+            const { count } = await supabase
+                .from('game_sessions')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', user.id)
+                .gte('created_at', `${TODAY}T00:00:00`);
+            setGamesToday(count ?? 0);
+        } catch (_) { }
     };
 
     const calculateRecommendations = (currentScores: Record<string, number>) => {
@@ -131,7 +192,11 @@ export default function HomeScreen({ navigation }: any) {
         const primaryCat = sortedCategories[0];
         const secondaryCat = sortedCategories[1];
 
-        const normalize = (key: string) => (key?.includes("Autism") ? "Autism" : key);
+        const normalize = (key: string) => {
+            if (!key) return 'General';
+            if (key === 'ASD' || key.includes("Autism")) return "Autism";
+            return key;
+        };
 
         const primaryGames = PROFILE_MAP[normalize(primaryCat)] || PROFILE_MAP["General"];
         const secondaryGames = PROFILE_MAP[normalize(secondaryCat)] || PROFILE_MAP["General"];
@@ -171,7 +236,7 @@ export default function HomeScreen({ navigation }: any) {
     return (
         <View style={styles.container}>
             {/* Daily mood check-in modal */}
-            <MoodCheckInModal onComplete={(mood) => setTodayMood(mood)} />
+            {user?.id && <MoodCheckInModal onComplete={(mood) => setTodayMood(mood)} />}
 
             {/* Background Gradient */}
             <LinearGradient colors={BG_GRADIENT} style={styles.backgroundGradient} />
@@ -213,7 +278,7 @@ export default function HomeScreen({ navigation }: any) {
                     </View>
                     <View style={styles.statCard}>
                         <Text style={styles.statEmoji}>
-                            {todayMood ? ['','😞','😔','😐','🙂','😊','😄','😁','🤩','🥳','✨'][todayMood] : '—'}
+                            {todayMood ? ['', '😞', '😔', '😐', '🙂', '😊', '😄', '😁', '🤩', '🥳', '✨'][todayMood] : '—'}
                         </Text>
                         <Text style={styles.statValue}>{todayMood ? `${todayMood}/10` : '—'}</Text>
                         <Text style={styles.statLabel}>Today's Mood</Text>
@@ -233,21 +298,21 @@ export default function HomeScreen({ navigation }: any) {
                 {/* ── Feature Shortcuts ─────────────────────────────────── */}
                 <View style={styles.shortcutsRow}>
                     <TouchableOpacity onPress={() => navigation.navigate('WeeklyReport')} style={styles.shortcutCard}>
-                        <LinearGradient colors={['rgba(139,92,246,0.25)','rgba(139,92,246,0.05)']} style={styles.shortcutGrad}>
+                        <LinearGradient colors={['rgba(139,92,246,0.25)', 'rgba(139,92,246,0.05)']} style={styles.shortcutGrad}>
                             <Text style={styles.shortcutEmoji}>📊</Text>
                             <Text style={styles.shortcutTitle}>AI Report</Text>
                             <Text style={styles.shortcutDesc}>Weekly therapy insights</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => navigation.navigate('Achievements')} style={styles.shortcutCard}>
-                        <LinearGradient colors={['rgba(245,158,11,0.25)','rgba(245,158,11,0.05)']} style={styles.shortcutGrad}>
+                        <LinearGradient colors={['rgba(245,158,11,0.25)', 'rgba(245,158,11,0.05)']} style={styles.shortcutGrad}>
                             <Text style={styles.shortcutEmoji}>🏆</Text>
                             <Text style={styles.shortcutTitle}>Achievements</Text>
                             <Text style={styles.shortcutDesc}>Your earned badges</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => navigation.navigate('LightBuilder')} style={styles.shortcutCard}>
-                        <LinearGradient colors={['rgba(251,191,36,0.25)','rgba(251,191,36,0.05)']} style={styles.shortcutGrad}>
+                        <LinearGradient colors={['rgba(251,191,36,0.25)', 'rgba(251,191,36,0.05)']} style={styles.shortcutGrad}>
                             <Text style={styles.shortcutEmoji}>✨</Text>
                             <Text style={styles.shortcutTitle}>Light Builder</Text>
                             <Text style={styles.shortcutDesc}>Daily quest city game</Text>
@@ -264,7 +329,7 @@ export default function HomeScreen({ navigation }: any) {
                         <Text style={styles.cardTitle}>Your Neuro Profile</Text>
                     </View>
 
-                    {Object.keys(scores).length === 0 ? (
+                    {!hasAssessment ? (
                         <View style={styles.emptyProfile}>
                             <View style={styles.emptyIcon}>
                                 <Ionicons name={"brain" as any} size={24} color="#A855F7" />
@@ -272,7 +337,7 @@ export default function HomeScreen({ navigation }: any) {
                             <Text style={styles.emptyText}>Your profile is waiting to be discovered</Text>
                             <TouchableOpacity
                                 style={styles.assessmentButton}
-                                onPress={() => navigation.navigate('Questionnaire')}
+                                onPress={() => navigation.push('Questionnaire')}
                             >
                                 <LinearGradient
                                     colors={GRADIENT_PRIMARY}
@@ -285,23 +350,65 @@ export default function HomeScreen({ navigation }: any) {
                         </View>
                     ) : (
                         <View style={styles.profileScores}>
-                            {Object.entries(scores).map(([domain, score]) => (
-                                <View key={domain} style={styles.scoreItem}>
-                                    <View style={styles.scoreHeader}>
-                                        <View style={styles.scoreDot} />
-                                        <Text style={styles.scoreDomain}>{domain}</Text>
-                                        <Text style={styles.scoreValue}>{score}/25</Text>
-                                    </View>
-                                    <View style={styles.progressBar}>
-                                        <LinearGradient
-                                            colors={PROGRESS_GRADIENT}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={[styles.progressFill, { width: `${(score / 25) * 100}%` }]}
-                                        />
-                                    </View>
+                            <Text style={styles.profileResultTitle}>
+                                Primary result: {assessmentResult?.primaryProfile}
+                            </Text>
+                            <Text style={styles.profileResultText}>
+                                Your games and daily support are now personalized around your profile.
+                            </Text>
+
+                            <View style={styles.profileTags}>
+                                <View style={[styles.profileTag, styles.profileTagPrimary]}>
+                                    <Text style={styles.profileTagLabel}>Primary</Text>
+                                    <Text style={styles.profileTagText}>
+                                        {assessmentResult?.primaryProfile}
+                                    </Text>
                                 </View>
-                            ))}
+                                {assessmentResult?.secondaryProfile ? (
+                                    <View style={[styles.profileTag, styles.profileTagSecondary]}>
+                                        <Text style={styles.profileTagLabel}>Also seen</Text>
+                                        <Text style={styles.profileTagText}>
+                                            {assessmentResult.secondaryProfile}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                            </View>
+
+                            <View style={styles.profileBreakdown}>
+                                {rankedScores.map(([domain, score]) => (
+                                    <View key={domain} style={styles.scoreItem}>
+                                        <View style={styles.scoreHeader}>
+                                            <View style={styles.scoreDot} />
+                                            <Text style={styles.scoreDomain}>{domain}</Text>
+                                            <Text style={styles.scoreValue}>{score}</Text>
+                                        </View>
+                                        <View style={styles.progressBar}>
+                                            <LinearGradient
+                                                colors={PROGRESS_GRADIENT}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={[
+                                                    styles.progressFill,
+                                                    { width: `${(score / maxProfileScore) * 100}%` },
+                                                ]}
+                                            />
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.assessmentButton}
+                                onPress={() => navigation.push('Questionnaire')}
+                            >
+                                <LinearGradient
+                                    colors={GRADIENT_PRIMARY}
+                                    style={styles.buttonGradient}
+                                >
+                                    <Ionicons name={"refresh" as any} size={16} color="white" />
+                                    <Text style={styles.buttonText}>Retake Assessment</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
                         </View>
                     )}
                 </View>
@@ -584,7 +691,52 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     profileScores: {
-        gap: 24,
+        gap: 20,
+    },
+    profileResultTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: 'white',
+    },
+    profileResultText: {
+        fontSize: 14,
+        lineHeight: 21,
+        color: '#D1D5DB',
+    },
+    profileTags: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    profileTag: {
+        flex: 1,
+        minWidth: 130,
+        borderRadius: 18,
+        padding: 14,
+        borderWidth: 1,
+    },
+    profileTagPrimary: {
+        backgroundColor: 'rgba(99, 102, 241, 0.14)',
+        borderColor: 'rgba(99, 102, 241, 0.35)',
+    },
+    profileTagSecondary: {
+        backgroundColor: 'rgba(244, 114, 182, 0.12)',
+        borderColor: 'rgba(244, 114, 182, 0.28)',
+    },
+    profileTagLabel: {
+        fontSize: 11,
+        color: '#9CA3AF',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: 6,
+    },
+    profileTagText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: 'white',
+    },
+    profileBreakdown: {
+        gap: 16,
     },
     scoreItem: {
         gap: 12,

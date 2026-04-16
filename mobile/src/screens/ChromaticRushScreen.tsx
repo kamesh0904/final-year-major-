@@ -7,6 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { BG_GRADIENT } from '../config/theme';
 import Svg, { Circle, Line, G } from 'react-native-svg';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../config/supabase';
 
 const { width } = Dimensions.get('window');
 const CANVAS = Math.min(width - 48, 320);
@@ -20,6 +22,7 @@ const COLOR_PALETTE = [
 ];
 
 export default function ChromaticRushScreen({ navigation }: any) {
+    const { user } = useAuth();
     const [isPlaying, setIsPlaying] = useState(false);
     const [isGameOver, setIsGameOver] = useState(false);
     const [score, setScore] = useState(0);
@@ -52,14 +55,28 @@ export default function ChromaticRushScreen({ navigation }: any) {
         return index < colors.length && colors[index] === rColor;
     };
 
-    const endGame = useCallback(() => {
+    const endGame = useCallback(async () => {
         isPlayingRef.current = false;
         isGameOverRef.current = true;
         setIsPlaying(false);
         setIsGameOver(true);
         if (animFrameRef.current) clearInterval(animFrameRef.current);
         if (scoreRef.current > highScore) setHighScore(scoreRef.current);
-    }, [highScore]);
+
+        if (user?.id && scoreRef.current > 0) {
+            try {
+                await supabase.from('game_sessions').insert({
+                    user_id: user.id,
+                    game_name: 'Chromatic Rush',
+                    score: scoreRef.current,
+                    duration_seconds: 0,
+                    created_at: new Date().toISOString(),
+                });
+            } catch (err) {
+                console.error('Failed to save score', err);
+            }
+        }
+    }, [highScore, user]);
 
     const startGame = useCallback(() => {
         const baseColors = COLOR_PALETTE.slice(0, 3);

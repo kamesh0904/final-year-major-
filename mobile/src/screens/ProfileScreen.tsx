@@ -385,7 +385,7 @@ export default function ProfileScreen({ navigation }: any) {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitleSimple}>Settings</Text>
 
-                    <TouchableOpacity style={styles.menuCard}>
+                    <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('DailyReport')}>
                         <View style={styles.menuIcon}>
                             <Ionicons name="document-text" size={24} color="#3B82F6" />
                         </View>
@@ -396,7 +396,7 @@ export default function ProfileScreen({ navigation }: any) {
                         <Ionicons name="chevron-forward" size={24} color="#6B7280" />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.menuCard}>
+                    <TouchableOpacity style={styles.menuCard} onPress={() => navigation.navigate('WeeklyReport')}>
                         <View style={styles.menuIcon}>
                             <Ionicons name="calendar" size={24} color="#8B5CF6" />
                         </View>

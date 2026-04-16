@@ -70,7 +70,7 @@ export default function DashboardScreen({ navigation }: any) {
         setRefreshing(false);
     };
 
-    const QuickCard = ({ icon, label, color, onPress }: { icon: any; label: string; color: string[]; onPress: () => void }) => (
+    const QuickCard = ({ icon, label, color, onPress }: { icon: any; label: string; color: readonly [string, string, ...string[]]; onPress: () => void }) => (
         <TouchableOpacity style={styles.quickCard} onPress={onPress}>
             <LinearGradient colors={color} style={styles.quickCardGrad}>
                 <Ionicons name={icon} size={26} color="white" />

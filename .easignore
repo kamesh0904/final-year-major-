@@ -1,0 +1,10 @@
+backend/ml/
+backend/ml/**
+**/*.wav
+**/*.mp3
+**/*.pkl
+frontend/
+.git/
+.github/
+.vscode/
+*.md

@@ -150,12 +150,20 @@ export default function DiaryScreen({ navigation }: any) {
 
     const handleDayPress = (day: number) => {
         const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // Block future dates
+        if (dateStr > todayStr) {
+            Alert.alert('Future Date', 'You can only write diary entries for today or past dates.');
+            return;
+        }
+
         const dayEntries = getEntriesForDay(day);
         if (dayEntries.length > 0) {
             setSelectedEntry(dayEntries[0]);
             setShowViewEntry(true);
         } else {
             setSelectedDate(dateStr);
+            resetForm();
             setShowNewEntry(true);
         }
     };
@@ -200,7 +208,18 @@ export default function DiaryScreen({ navigation }: any) {
                     </View>
                     <TouchableOpacity
                         style={[styles.newEntryBtn]}
-                        onPress={() => { setSelectedDate(todayStr); setShowNewEntry(true); }}
+                        onPress={() => {
+                            // Block if today already has an entry
+                            const todayEntries = entries.filter(e => e.entry_date === todayStr);
+                            if (todayEntries.length > 0) {
+                                setSelectedEntry(todayEntries[0]);
+                                setShowViewEntry(true);
+                            } else {
+                                resetForm();
+                                setSelectedDate(todayStr);
+                                setShowNewEntry(true);
+                            }
+                        }}
                     >
                         <LinearGradient colors={GRADIENT_WARM} style={styles.newEntryGrad}>
                             <Ionicons name="add" size={18} color="white" />
@@ -217,7 +236,15 @@ export default function DiaryScreen({ navigation }: any) {
                             <Ionicons name="chevron-back" size={24} color={COLOR.purple500} />
                         </TouchableOpacity>
                         <Text style={styles.monthLabel}>{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</Text>
-                        <TouchableOpacity onPress={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}>
+                        <TouchableOpacity
+                            onPress={() => {
+                                const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+                                if (next.getFullYear() < today.getFullYear() ||
+                                    (next.getFullYear() === today.getFullYear() && next.getMonth() <= today.getMonth())) {
+                                    setCurrentMonth(next);
+                                }
+                            }}
+                        >
                             <Ionicons name="chevron-forward" size={24} color={COLOR.purple500} />
                         </TouchableOpacity>
                     </View>

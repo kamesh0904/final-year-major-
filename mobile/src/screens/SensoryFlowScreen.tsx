@@ -28,17 +28,17 @@ interface FloatingShape {
 
 // ─── Configuration ──────────────────────────────────────────────────────────────
 const COLORS: Record<ShapeColor, { main: string; glow: string; label: string }> = {
-    blue:   { main: '#60A5FA', glow: 'rgba(96,165,250,0.4)',   label: 'Calm'  },
+    blue: { main: '#60A5FA', glow: 'rgba(96,165,250,0.4)', label: 'Calm' },
     purple: { main: '#A78BFA', glow: 'rgba(167,139,250,0.4)', label: 'Focus' },
-    teal:   { main: '#2DD4BF', glow: 'rgba(45,212,191,0.4)',  label: 'Flow'  },
+    teal: { main: '#2DD4BF', glow: 'rgba(45,212,191,0.4)', label: 'Flow' },
 };
 
 // Zones placed near the bottom of the play area
 const ZONE_Y = height * 0.78;
 const ZONES: Array<{ color: ShapeColor; x: number }> = [
-    { color: 'blue',   x: width * 0.2  },
-    { color: 'purple', x: width * 0.5  },
-    { color: 'teal',   x: width * 0.8  },
+    { color: 'blue', x: width * 0.2 },
+    { color: 'purple', x: width * 0.5 },
+    { color: 'teal', x: width * 0.8 },
 ];
 const ZONE_RADIUS = 50;
 const MATCH_THRESHOLD = ZONE_RADIUS + 20;
@@ -257,15 +257,17 @@ export default function SensoryFlowScreen({ navigation }: any) {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#060d1f', '#0d1b3e', '#060d1f'] as const} style={StyleSheet.absoluteFill} />
+            <View style={[styles.ambientOrb, { top: -80, left: -60, backgroundColor: 'rgba(45,212,191,0.06)', width: 240, height: 240 }]} />
+            <View style={[styles.ambientOrb, { bottom: 120, right: -80, backgroundColor: 'rgba(96,165,250,0.05)', width: 280, height: 280 }]} />
 
             {/* ── Header ── */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-                        <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.8)" />
+                        <Ionicons name="arrow-back" size={20} color="rgba(255,255,255,0.8)" />
                     </TouchableOpacity>
                     <View>
-                        <Text style={styles.title}>🪶 Sensory Flow</Text>
+                        <Text style={styles.title}>Sensory Flow</Text>
                         <Text style={styles.subtitle}>
                             {isPlaying ? `Goal: ${targetScore} matches` : 'Drag shapes to matching zones'}
                         </Text>
@@ -275,11 +277,11 @@ export default function SensoryFlowScreen({ navigation }: any) {
                 {/* Stats */}
                 <View style={styles.statsGrid}>
                     <View style={styles.statBox}>
-                        <Text style={styles.statLabel}>Score</Text>
+                        <Text style={styles.statLabel}>SCORE</Text>
                         <Text style={styles.statVal}>{score}</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.statLabel}>Time</Text>
+                        <Text style={styles.statLabel}>TIME</Text>
                         <Text style={styles.statVal}>{formatTime(sessionTime)}</Text>
                     </View>
                 </View>
@@ -289,8 +291,10 @@ export default function SensoryFlowScreen({ navigation }: any) {
             {isPlaying && (
                 <View style={styles.progressSection}>
                     <View style={styles.progressRow}>
-                        <Text style={styles.levelText}>Level {level}</Text>
-                        <Text style={styles.levelText}>{score}/{targetScore}</Text>
+                        <View style={styles.levelChip}>
+                            <Text style={styles.levelChipText}>LVL {level}</Text>
+                        </View>
+                        <Text style={styles.progressCount}>{score}/{targetScore}</Text>
                     </View>
                     <View style={styles.progressTrack}>
                         <LinearGradient
@@ -338,15 +342,28 @@ export default function SensoryFlowScreen({ navigation }: any) {
             {/* ── Start screen ── */}
             {!isPlaying && !isComplete && (
                 <View style={styles.centeredOverlay}>
+                    <View style={styles.heroIconWrap}>
+                        <LinearGradient colors={['rgba(45,212,191,0.3)', 'rgba(96,165,250,0.15)']} style={styles.heroGlow} />
+                        <Text style={styles.heroEmoji}>🌊</Text>
+                    </View>
                     <View style={styles.infoCard}>
-                        <Text style={styles.cardIcon}>🌊</Text>
-                        <Text style={styles.cardTitle}>Sensory Flow</Text>
+                        <LinearGradient colors={['#14B8A6', '#06B6D4']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradientTitle}>
+                            <Text style={styles.gradientTitleText}>Sensory Flow</Text>
+                        </LinearGradient>
                         <Text style={styles.cardDesc}>
                             Drag each coloured shape into its matching zone at the bottom.{'\n\n'}
-                            Match Calm → blue zone, Focus → purple zone, Flow → teal zone.{'\n\n'}
+                            Calm → blue · Focus → purple · Flow → teal{'\n\n'}
                             No pressure. Just breathe and flow.
                         </Text>
-                        <TouchableOpacity style={styles.startBtn} onPress={startSession}>
+                        <View style={styles.zoneHintRow}>
+                            {(['blue', 'purple', 'teal'] as const).map(c => (
+                                <View key={c} style={[styles.zoneHintChip, { backgroundColor: COLORS[c].main + '22', borderColor: COLORS[c].main + '55' }]}>
+                                    <View style={[styles.zoneHintDot, { backgroundColor: COLORS[c].main }]} />
+                                    <Text style={[styles.zoneHintLabel, { color: COLORS[c].main }]}>{COLORS[c].label}</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <TouchableOpacity style={styles.startBtn} onPress={startSession} activeOpacity={0.85}>
                             <LinearGradient colors={['#14B8A6', '#06B6D4'] as const} style={styles.startBtnGrad}>
                                 <Ionicons name="water" size={18} color="white" />
                                 <Text style={styles.startBtnText}>Enter Flow State</Text>
@@ -359,11 +376,14 @@ export default function SensoryFlowScreen({ navigation }: any) {
             {/* ── Complete modal ── */}
             {isComplete && (
                 <View style={styles.centeredOverlay}>
+                    <View style={styles.heroIconWrap}>
+                        <LinearGradient colors={['rgba(45,212,191,0.3)', 'rgba(96,165,250,0.15)']} style={styles.heroGlow} />
+                        <Ionicons name="checkmark-circle" size={64} color="#2DD4BF" />
+                    </View>
                     <View style={[styles.infoCard, { borderColor: 'rgba(45,212,191,0.3)' }]}>
-                        <View style={styles.completeIcon}>
-                            <Ionicons name="checkmark-circle" size={40} color="#2DD4BF" />
-                        </View>
-                        <Text style={styles.cardTitle}>Flow Complete!</Text>
+                        <LinearGradient colors={['#14B8A6', '#06B6D4']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.gradientTitle}>
+                            <Text style={styles.gradientTitleText}>Flow Complete!</Text>
+                        </LinearGradient>
                         <Text style={styles.completeSub}>You've achieved perfect sensory harmony</Text>
                         <View style={styles.completeStats}>
                             <View style={styles.completeStat}>
@@ -375,8 +395,9 @@ export default function SensoryFlowScreen({ navigation }: any) {
                                 <Text style={styles.completeStatLabel}>Duration</Text>
                             </View>
                         </View>
-                        <TouchableOpacity style={styles.startBtn} onPress={startSession}>
+                        <TouchableOpacity style={styles.startBtn} onPress={startSession} activeOpacity={0.85}>
                             <LinearGradient colors={['#14B8A6', '#06B6D4'] as const} style={styles.startBtnGrad}>
+                                <Ionicons name="refresh" size={18} color="white" />
                                 <Text style={styles.startBtnText}>Flow Again</Text>
                             </LinearGradient>
                         </TouchableOpacity>
@@ -389,23 +410,26 @@ export default function SensoryFlowScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
+    ambientOrb: { position: 'absolute', borderRadius: 999 },
     // Header
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 12, zIndex: 20 },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    closeBtn: { width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-    title: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-    subtitle: { color: 'rgba(45,212,191,0.6)', fontSize: 12, marginTop: 2 },
+    closeBtn: { width: 38, height: 38, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 19, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+    title: { color: 'white', fontSize: 18, fontWeight: '700', letterSpacing: 0.3 },
+    subtitle: { color: 'rgba(45,212,191,0.7)', fontSize: 12, marginTop: 2, fontWeight: '500' },
     statsGrid: { flexDirection: 'row', gap: 8 },
-    statBox: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 10, alignItems: 'center', minWidth: 60, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-    statLabel: { color: '#6B7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 },
-    statVal: { color: 'white', fontSize: 18, fontWeight: '300', marginTop: 2 },
+    statBox: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: 10, alignItems: 'center', minWidth: 62, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    statLabel: { color: 'rgba(156,163,175,1)', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+    statVal: { color: 'white', fontSize: 18, fontWeight: '700', marginTop: 2 },
     // Progress
     progressSection: { paddingHorizontal: 20, marginBottom: 8, zIndex: 20 },
-    progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-    levelText: { color: '#9CA3AF', fontSize: 11 },
+    progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    levelChip: { backgroundColor: 'rgba(45,212,191,0.2)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 2, borderWidth: 1, borderColor: 'rgba(45,212,191,0.4)' },
+    levelChipText: { color: '#2DD4BF', fontSize: 11, fontWeight: '700' },
+    progressCount: { color: 'rgba(156,163,175,1)', fontSize: 11, fontWeight: '600' },
     progressTrack: { height: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 4 },
-    // Play area (full screen canvas-like layer)
+    // Play area
     playArea: { ...StyleSheet.absoluteFillObject, zIndex: 5 },
     shape: { position: 'absolute', borderWidth: 1.5, shadowOpacity: 0.7, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8, justifyContent: 'center', alignItems: 'center' },
     shapeHighlight: { position: 'absolute', top: 5, left: 5, width: '30%', height: '30%', backgroundColor: 'rgba(255,255,255,0.3)' },
@@ -415,22 +439,28 @@ const styles = StyleSheet.create({
     zoneRow: { position: 'absolute', left: 0, right: 0 },
     zone: { position: 'absolute', width: ZONE_RADIUS * 2, height: ZONE_RADIUS * 2, borderRadius: ZONE_RADIUS, borderWidth: 2, shadowOpacity: 0.6, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 6, justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden' },
     zoneInner: { ...StyleSheet.absoluteFillObject, borderRadius: ZONE_RADIUS },
-    zoneLabel: { fontSize: 11, fontWeight: 'bold', marginBottom: 6, zIndex: 2 },
+    zoneLabel: { fontSize: 11, fontWeight: '800', marginBottom: 6, zIndex: 2, letterSpacing: 0.5 },
     zoneLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
     // Overlays
-    centeredOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 30, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, backgroundColor: 'rgba(0,0,0,0.5)' },
-    infoCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 28, padding: 28, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', gap: 12 },
-    cardIcon: { fontSize: 52 },
-    cardTitle: { color: 'white', fontWeight: 'bold', fontSize: 24 },
-    cardDesc: { color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 22 },
-    startBtn: { borderRadius: 16, overflow: 'hidden', width: '100%' },
-    startBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
-    startBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+    centeredOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 30, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, backgroundColor: 'rgba(0,0,0,0.6)', gap: 20 },
+    heroIconWrap: { alignItems: 'center', justifyContent: 'center' },
+    heroGlow: { position: 'absolute', width: 140, height: 140, borderRadius: 70 },
+    heroEmoji: { fontSize: 72 },
+    infoCard: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 28, padding: 28, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', gap: 14, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
+    gradientTitle: { borderRadius: 12, paddingHorizontal: 20, paddingVertical: 6 },
+    gradientTitleText: { color: 'white', fontWeight: '800', fontSize: 22, letterSpacing: 0.5 },
+    cardDesc: { color: 'rgba(156,163,175,1)', fontSize: 14, textAlign: 'center', lineHeight: 22 },
+    zoneHintRow: { flexDirection: 'row', gap: 8 },
+    zoneHintChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1 },
+    zoneHintDot: { width: 8, height: 8, borderRadius: 4 },
+    zoneHintLabel: { fontSize: 12, fontWeight: '700' },
+    startBtn: { borderRadius: 16, overflow: 'hidden', width: '100%', shadowColor: '#14B8A6', shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+    startBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15 },
+    startBtnText: { color: 'white', fontWeight: '800', fontSize: 16 },
     // Complete
-    completeIcon: { width: 72, height: 72, backgroundColor: 'rgba(45,212,191,0.1)', borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-    completeSub: { color: '#2DD4BF', fontSize: 14 },
-    completeStats: { flexDirection: 'row', gap: 16, width: '100%' },
-    completeStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-    completeStatVal: { color: 'white', fontWeight: 'bold', fontSize: 22 },
-    completeStatLabel: { color: '#6B7280', fontSize: 11, marginTop: 2 },
+    completeSub: { color: '#2DD4BF', fontSize: 14, fontWeight: '500' },
+    completeStats: { flexDirection: 'row', gap: 12, width: '100%' },
+    completeStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    completeStatVal: { color: 'white', fontWeight: '800', fontSize: 24 },
+    completeStatLabel: { color: 'rgba(156,163,175,1)', fontSize: 11, marginTop: 3, fontWeight: '600' },
 });

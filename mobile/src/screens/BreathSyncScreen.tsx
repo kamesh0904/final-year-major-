@@ -108,7 +108,7 @@ export default function BreathSyncScreen({ navigation }: any) {
 
     const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-    const phaseColors: Record<string, string[]> = {
+    const phaseColors: Record<string, [string, string]> = {
         'Inhale': ['rgba(6,182,212,0.3)', 'rgba(6,182,212,0.05)'],
         'Hold': ['rgba(99,102,241,0.3)', 'rgba(99,102,241,0.05)'],
         'Exhale': ['rgba(16,185,129,0.3)', 'rgba(16,185,129,0.05)'],

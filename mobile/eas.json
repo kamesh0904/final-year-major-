@@ -1,6 +1,6 @@
 {
     "cli": {
-        "version": ">= 5.0.0"
+        "version": ">= 12.0.0"
     },
     "build": {
         "development": {
@@ -11,25 +11,20 @@
             "distribution": "internal",
             "android": {
                 "buildType": "apk"
+            },
+            "env": {
+                "EXPO_PUBLIC_SUPABASE_URL": "https://azwgugwqbmpdnkbaqhgo.supabase.co",
+                "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6d2d1Z3dxYm1wZG5rYmFxaGdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTkyOTcsImV4cCI6MjA4MzQzNTI5N30.s4pQO_4YYsUk5m1AXM1hi-cN5mfKfA6HCzofX19oysI",
+                "EXPO_PUBLIC_API_URL": "https://neuronest-backend-173555414031.us-central1.run.app"
             }
         },
         "production": {
             "android": {
-                "buildType": "aab"
+                "buildType": "app-bundle"
             }
         }
     },
     "submit": {
-        "production": {
-            "android": {
-                "serviceAccountKeyPath": "./service-account-key.json",
-                "track": "internal"
-            },
-            "ios": {
-                "appleId": "your-apple-id@email.com",
-                "ascAppId": "your-app-store-connect-app-id",
-                "appleTeamId": "your-apple-team-id"
-            }
-        }
+        "production": {}
     }
 }

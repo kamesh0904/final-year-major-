@@ -189,6 +189,11 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None          # Groups messages per session
 
 
+class ChatResponse(BaseModel):
+    response: str
+    cached: bool = False
+
+
 class ChatFeedbackRequest(BaseModel):
     message_id: str        # ID of the AI message being rated
     user_id: str
@@ -320,7 +325,7 @@ async def save_chat_feedback(payload: ChatFeedbackRequest):
         return {"status": "error", "message": str(e)}
 
 
-@app.post("/chat", response_model=Dict[str, str])
+@app.post("/chat", response_model=ChatResponse)
 @limiter.limit("10/minute")  # 10 messages per minute per IP
 async def chat_with_companion(request: Request, payload: ChatRequest):
     """
@@ -329,52 +334,75 @@ async def chat_with_companion(request: Request, payload: ChatRequest):
     """
     from core.cache import get_cached_response, cache_response
     
+    # Helper to persist chat securely
+    def persist_chat(uid, usr_msg, ai_msg, sid):
+        if not uid or not supabase: return
+        try:
+            now = datetime.datetime.utcnow().isoformat()
+            supabase.table("chat_messages").insert([
+                {"user_id": uid, "role": "user", "content": usr_msg, "session_id": sid, "created_at": now},
+                {"user_id": uid, "role": "assistant", "content": ai_msg, "session_id": sid, "created_at": now}
+            ]).execute()
+        except Exception as db_err:
+            print(f"⚠️ Could not persist chat messages: {db_err}")
+
+    session_id = payload.session_id or payload.user_id
+
     if not companion:
         print("❌ Chat request failed: Companion agent not initialized")
-        return {"response": "I'm currently undergoing maintenance (AI modules offline). Please try again in a few minutes."}
+        return ChatResponse(
+            response="I'm currently undergoing maintenance (AI modules offline). Please try again in a few minutes.",
+            cached=False,
+        )
 
     # Check cache first
     if payload.user_id:
         cached = get_cached_response(payload.user_id, payload.message, payload.history)
         if cached:
             print(f"✅ Cache HIT - returning cached response for user {payload.user_id}")
-            return {"response": cached, "cached": True}
+            persist_chat(payload.user_id, payload.message, cached, session_id)
+            return ChatResponse(response=cached, cached=True)
 
     # Build conversation history
     lc_history = []
     for msg in payload.history:
-        if msg["role"] == "user":
-            lc_history.append(HumanMessage(content=msg["content"]))
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "user":
+            lc_history.append(HumanMessage(content=content))
         else:
-            lc_history.append(AIMessage(content=msg["content"]))
+            lc_history.append(AIMessage(content=content))
     
     # Debug incoming user_id
     print(f"💬 Chatting with user_id: {payload.user_id}")
 
     # Get AI response
-    response_text = companion.get_response(
-        user_message=payload.message,
-        history=lc_history,
-        profile=payload.profile,
-        game_stats=payload.game_stats,
-        user_id=payload.user_id
-    )
+    try:
+        response_text = companion.get_response(
+            user_message=payload.message,
+            history=lc_history,
+            profile=payload.profile,
+            game_stats=payload.game_stats,
+            user_id=payload.user_id
+        )
+    except Exception as chat_error:
+        print(f"ERROR: Chat processing failed: {chat_error}")
+        return ChatResponse(
+            response="I'm having trouble reaching my AI service right now. Please try again in a moment.",
+            cached=False,
+        )
     
     # Cache the response for future use
     if payload.user_id:
-        cache_response(payload.user_id, payload.message, payload.history, response_text)
+        try:
+            cache_response(payload.user_id, payload.message, payload.history, response_text)
+        except Exception as cache_err:
+            print(f"WARN: Cache write failed: {cache_err}")
 
     # ── Persist both messages to chat_messages table ──────────────────────────
-    if payload.user_id and supabase:
-        try:
-            from training_pipeline import save_chat_message
-            session_id = payload.session_id or payload.user_id
-            save_chat_message(payload.user_id, "user",      payload.message,  session_id)
-            save_chat_message(payload.user_id, "assistant", response_text,    session_id)
-        except Exception as db_err:
-            print(f"⚠️ Could not persist chat messages: {db_err}")
+    persist_chat(payload.user_id, payload.message, response_text, session_id)
     
-    return {"response": response_text, "cached": False}
+    return ChatResponse(response=response_text, cached=False)
 
 
 @app.post("/generate-weekly-report")

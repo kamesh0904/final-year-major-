@@ -1,0 +1,25 @@
+# Ignore node_modules (EAS installs fresh)
+node_modules/
+
+# Ignore test files
+**/*.test.ts
+**/*.test.tsx
+**/__tests__/
+
+# Ignore large audio/ML files
+**/*.wav
+**/*.mp3
+**/*.pkl
+
+# Ignore backend entirely (not needed for mobile build)
+../backend/
+../frontend/
+../backend/ml/
+
+# Ignore git and IDE
+../.git/
+../.github/
+../.vscode/
+
+# Ignore markdown docs
+../*.md

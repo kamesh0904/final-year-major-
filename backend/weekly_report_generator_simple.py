@@ -348,8 +348,14 @@ class ClinicalSynthesisGenerator:
                     "focus_area": "Continue building on your progress with consistent self-care practices."
                 }
 
-# Initialize the generator
-synthesis_generator = ClinicalSynthesisGenerator()
+# Initialize the generator lazily to avoid startup failures
+synthesis_generator = None
+
+def get_synthesis_generator():
+    global synthesis_generator
+    if synthesis_generator is None:
+        synthesis_generator = ClinicalSynthesisGenerator()
+    return synthesis_generator
 
 @router.post("/generate-enhanced-weekly-report")
 async def generate_enhanced_weekly_report(
@@ -363,7 +369,7 @@ async def generate_enhanced_weekly_report(
             raise HTTPException(status_code=500, detail="Database not available")
         
         # Generate the clinical synthesis
-        report_data = await synthesis_generator.generate_clinical_synthesis(
+        report_data = await get_synthesis_generator().generate_clinical_synthesis(
             user_id=request.userId,
             checkin_data=request.checkinData,
             report_type="weekly"
@@ -439,7 +445,7 @@ async def generate_daily_report(
             raise HTTPException(status_code=500, detail="Database not available")
         
         # Generate the clinical synthesis for daily report
-        report_data = await synthesis_generator.generate_clinical_synthesis(
+        report_data = await get_synthesis_generator().generate_clinical_synthesis(
             user_id=request.userId,
             checkin_data=request.checkinData,
             report_type="daily"

@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../config/supabase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -61,6 +63,7 @@ const SCENARIOS = [
 ];
 
 export default function EmotionMatchScreen({ navigation }: any) {
+    const { user } = useAuth();
     const [score, setScore] = useState(0);
     const [combo, setCombo] = useState(0);
     const [bestCombo, setBestCombo] = useState(0);
@@ -99,6 +102,7 @@ export default function EmotionMatchScreen({ navigation }: any) {
 
     const particleIdRef = useRef(0);
     const questionStartTime = useRef(Date.now());
+    const gameStartTime = useRef(Date.now());
     const shakeAnimation = useRef(new Animated.Value(0)).current;
 
     // Timer effect
@@ -122,6 +126,17 @@ export default function EmotionMatchScreen({ navigation }: any) {
     useEffect(() => {
         if (isPlaying) {
             startRound();
+        } else if (score > 0 && user?.id) {
+            const duration = Math.floor((Date.now() - gameStartTime.current) / 1000);
+            supabase.from('game_sessions').insert({
+                user_id: user.id,
+                game_name: 'Emotion Match',
+                score: score,
+                duration_seconds: duration > 0 ? duration : 0,
+                created_at: new Date().toISOString(),
+            }).then(({ error }) => {
+                if (error) console.error('Error saving Emotion Match score:', error);
+            });
         }
     }, [round, isPlaying]);
 
@@ -201,6 +216,7 @@ export default function EmotionMatchScreen({ navigation }: any) {
     };
 
     const startGame = () => {
+        gameStartTime.current = Date.now();
         setIsPlaying(true);
         setScore(0);
         setCombo(0);

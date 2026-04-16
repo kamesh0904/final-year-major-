@@ -7,19 +7,37 @@ from crisis_detection import crisis_detector
 
 load_dotenv()
 
+try:
+    from langchain_groq import ChatGroq
+    _GROQ_AVAILABLE = True
+except ImportError:
+    _GROQ_AVAILABLE = False
+
 
 class CompanionAgent:
     def __init__(self):
-        # Using GPT-4o for best conversational empathy
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("⚠️ WARNING: OPENAI_API_KEY is missing from .env file!")
+        # Try OpenAI first, fall back to Groq
+        openai_key = os.getenv("OPENAI_API_KEY")
+        groq_key = os.getenv("GROQ_API_KEY")
 
-        self.llm = ChatOpenAI(
-            api_key=api_key,
-            model="gpt-4o",
-            temperature=0.7
-        )
+        if openai_key:
+            print("✅ CompanionAgent using OpenAI GPT-4o")
+            self.llm = ChatOpenAI(
+                api_key=openai_key,
+                model="gpt-4o",
+                temperature=0.7
+            )
+        elif groq_key:
+            print("⚠️ OpenAI key missing — CompanionAgent falling back to Groq llama3")
+            from langchain_groq import ChatGroq
+            self.llm = ChatGroq(
+                api_key=groq_key,
+                model="llama3-70b-8192",
+                temperature=0.7
+            )
+        else:
+            print("⚠️ WARNING: No AI API key found (OPENAI_API_KEY or GROQ_API_KEY)!")
+            self.llm = None
 
     def get_response(self, user_message: str, history: list, profile: str, game_stats: str, user_id: str = None) -> str:
         # 1. CRISIS DETECTION - Check for suicide ideation first
@@ -187,6 +205,9 @@ Please, please call AASRA right now at 9820466726 - they have trained counselors
         ])
 
         # 6. Create Chain
+        if not self.llm:
+            return "I'm not able to connect right now — the AI service isn't configured on this server. Please contact support."
+
         chain = prompt | self.llm
 
         try:
